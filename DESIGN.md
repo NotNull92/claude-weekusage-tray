@@ -1,0 +1,114 @@
+# Design
+
+## Shape
+
+Two executables and a shared core.
+
+```
+ClaudeUsageStatusLine.exe          ClaudeWeekUsageTray.exe
+  reads stdin JSON                   Shell_NotifyIcon glyph
+  extracts 4 scalars                 detail panel (GDI)
+  sends over loopback  ----------->  loopback listener
+  runs the wrapped command           setup / cleanup / self-test
+```
+
+`src/common` holds everything both need: a small JSON reader, the usage model
+and its validation rules, the IPC wire format, and a handful of Windows
+helpers. `src/tray` and `src/statusline` hold the parts that differ.
+
+Native Win32 and C++17, static CRT, no .NET, no third-party library. The
+resident process is a message loop, one listener thread, and two windows.
+
+## Why a separate helper process
+
+Claude Code runs its `statusLine` command on every render, then throws it away.
+That is the wrong lifetime for a tray icon, so the icon lives in a resident
+process and the short-lived command only forwards.
+
+Keeping them as separate executables also keeps their jobs separate: the
+helper is a console program that reads stdin and writes stdout, the tray is a
+GUI program that never has either.
+
+## Why loopback TCP
+
+The requirement was a channel that is local-only and cannot be spoofed by an
+arbitrary process. A named pipe with a security descriptor would work equally
+well; loopback TCP was chosen because binding `127.0.0.1` with an ephemeral
+port is unambiguous to reason about and easy to demonstrate in a test, and the
+token file carries the same per-user DACL a named pipe would have needed.
+
+The wire format is one line of six ASCII fields:
+
+```
+CWUT1 <64-hex-token> <fiveUsed> <fiveReset> <sevenUsed> <sevenReset>
+```
+
+`-` stands in for a field the payload did not supply. There is deliberately no
+room in this format for anything but the four numbers. See SECURITY.md for the
+authentication details.
+
+## Why the glyph is drawn, not loaded
+
+The tray shows a number that changes, so the icon is rendered on demand: a
+32-bit DIB, white text on black with grayscale antialiasing, then the luminance
+is read back as the alpha channel and the result is premultiplied in the
+foreground colour of the current system theme. ClearType is disabled for this
+draw because subpixel colour fringes would corrupt that alpha mask.
+
+The font height is chosen by fitting: the largest size at which the label still
+fits the icon box wins. This is what lets `100` render as `100` instead of
+being cropped or silently replaced with something shorter.
+
+Stale data is drawn at reduced alpha. Dimming is a legitimate signal that the
+number is old; changing the number would not be.
+
+## Fail-closed rules
+
+The parser has one job it must not get wrong: never invent a figure. So
+
+- a payload that does not parse produces no snapshot at all
+- a window with no numeric `used_percentage` is not a window
+- `100 - used` is computed from a value already clamped to 0–100
+- `used_percentage` rounds **up**, so remaining rounds down
+- a bad `resets_at` costs you the reset line, not the percentage
+- the tray glyph reads the five-hour window only; a seven-day figure never
+  substitutes for it
+
+`--self-test` covers each of these, plus the IPC round trip, token rejection,
+oversized and malformed messages, the rendered glyph, the menu, and the panel's
+show/hide behaviour.
+
+## Event-driven, and honest about it
+
+Nothing polls Claude. The tray updates when a payload arrives, full stop. The
+30-second timer inside the tray re-renders state the process already has, so
+the glyph dims and the panel wording changes at the right moment. When Claude
+Code is closed, the figures stop changing and the interface says the data is
+stale rather than implying a fresh reading.
+
+`kStaleAfterSeconds` is 15 minutes. Claude Code renders its status line
+frequently while in use, so a gap that long means it is not running.
+
+## Status-line composition
+
+Claude Code allows a single `statusLine` command, which makes "add ours"
+inherently destructive. The rules the setup follows:
+
+1. No `statusLine` at all: write ours.
+2. Already ours: do nothing and say so.
+3. A `{ type: "command", command: "<string>" }` entry that is not ours: refuse,
+   and print what `--wrap-existing` would do. With that flag, record the
+   original command, install the helper, and have the helper run the original
+   with the same stdin and print its output unchanged.
+4. Anything else, including a file that does not parse as JSON: change nothing
+   and print the lines to add by hand.
+
+`settings.json` is backed up before any write, unrecognised keys inside
+`statusLine` are carried over, and `--remove-statusline` puts the original
+back.
+
+## Things deliberately left out
+
+An updater, a downloader, startup registration, telemetry, a settings UI, and
+any notion of an account. Each of them would have widened the boundary in
+SECURITY.md, and none of them is needed to show four numbers.
