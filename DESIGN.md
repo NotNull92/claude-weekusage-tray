@@ -60,15 +60,36 @@ authentication details.
 
 ## Why the glyph is drawn, not loaded
 
-The tray shows a number that changes, so the icon is rendered on demand: a
-32-bit DIB, white text on black with grayscale antialiasing, then the luminance
-is read back as the alpha channel and the result is premultiplied in the
-foreground colour of the current system theme. ClearType is disabled for this
-draw because subpixel colour fringes would corrupt that alpha mask.
+The tray shows a number that changes, so the icon is rendered on demand rather
+than picked from a set of prepared images.
 
-The font height is chosen by fitting: the largest size at which the label still
-fits the icon box wins. This is what lets `100` render as `100` instead of
-being cropped or silently replaced with something shorter.
+Drawing text straight into a 16-pixel bitmap does not work. GDI's hinting
+reshapes bold digits at that size and the result looks broken. So nothing is
+drawn at the final size: the label goes onto a canvas four times larger, where
+the outlines are reproduced faithfully, and that is box-filtered down. White on
+black with grayscale antialiasing, luminance read back as coverage. ClearType
+is off for this draw, because subpixel colour fringes would corrupt the
+coverage.
+
+Box-filtering leaves most of a thin stem at partial coverage, which reads as a
+grey smudge. A curve is applied afterwards that drops the faintest fringe and
+pushes the rest towards solid, so the weight on screen matches the weight of
+the typeface, which is Segoe UI Black.
+
+Three decisions come out of measuring the ink rather than the font metrics:
+
+- **Size.** The largest type whose ink fits wins, not the largest whose line
+  box fits. Digits have no descenders, so fitting by line box would waste about
+  a third of the height.
+- **Position.** The glyph is centred on its ink, so it is optically centred
+  instead of centred on a box with empty space in it.
+- **Width.** Three digits cannot fit across a tray icon at a readable height,
+  so `100` is condensed horizontally by up to 28% before the type size gives
+  way. Squeezing it beats shrinking it, and both beat showing something that
+  is not the real number.
+
+The colour is the Claude accent orange, the same one the panel uses for its
+bars, in a darker shade on a light taskbar so the contrast holds either way.
 
 Stale data is drawn at reduced alpha. Dimming is a legitimate signal that the
 number is old; changing the number would not be.

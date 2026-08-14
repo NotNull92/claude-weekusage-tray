@@ -189,13 +189,20 @@ void testIcon() {
     IconStyle style;
     style.sizePixels = 16;
 
-    auto visiblePixels = [](const std::wstring& label, const IconStyle& s) -> int {
+    struct Rendered {
+        int visible = -1;   // pixels with any opacity
+        int coloured = 0;   // pixels whose red clearly leads blue, i.e. orange
+        int solid = 0;      // fully opaque pixels
+    };
+
+    auto render = [](const std::wstring& label, const IconStyle& s) -> Rendered {
+        Rendered result;
         HICON icon = CreateLabelIcon(label, s);
-        if (icon == nullptr) return -1;
+        if (icon == nullptr) return result;
         ICONINFO info{};
         if (!GetIconInfo(icon, &info)) {
             DestroyIcon(icon);
-            return -1;
+            return result;
         }
         BITMAPINFO header{};
         header.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -212,21 +219,36 @@ void testIcon() {
         if (info.hbmColor != nullptr) DeleteObject(info.hbmColor);
         if (info.hbmMask != nullptr) DeleteObject(info.hbmMask);
         DestroyIcon(icon);
-        if (lines == 0) return -1;
-        int count = 0;
-        for (size_t i = 3; i < pixels.size(); i += 4) {
-            if (pixels[i] != 0) ++count;
+        if (lines == 0) return result;
+        result.visible = 0;
+        for (size_t i = 0; i + 3 < pixels.size(); i += 4) {
+            const unsigned char blue = pixels[i];
+            const unsigned char red = pixels[i + 2];
+            const unsigned char alpha = pixels[i + 3];
+            if (alpha == 0) continue;
+            ++result.visible;
+            if (alpha == 255) ++result.solid;
+            if (red > blue + 20) ++result.coloured;
         }
-        return count;
+        return result;
     };
 
-    const int two = visiblePixels(L"73", style);
-    const int three = visiblePixels(L"100", style);
-    const int dashes = visiblePixels(L"--", style);
-    check(two > 0, "renders a two-digit label");
-    check(three > 0, "renders a three-digit label");
-    check(dashes > 0, "renders the -- placeholder");
-    check(two > dashes, "two digits cover more pixels than the placeholder");
+    const Rendered two = render(L"73", style);
+    const Rendered three = render(L"100", style);
+    const Rendered dashes = render(L"--", style);
+    check(two.visible > 0, "renders a two-digit label");
+    check(three.visible > 0, "renders a three-digit label");
+    check(dashes.visible > 0, "renders the -- placeholder");
+    check(two.visible > dashes.visible, "two digits cover more pixels than the placeholder");
+    check(two.solid > 0, "the glyph has fully opaque strokes rather than a grey wash");
+
+    check(GlyphColor(false) == RGB(0xD9, 0x77, 0x57), "dark-theme glyph is the Claude orange");
+    check(GlyphColor(true) == RGB(0xC1, 0x5F, 0x3C), "light-theme glyph is the darker orange");
+    check(two.coloured > two.visible / 2, "most of the glyph is drawn in the accent colour");
+    IconStyle lightStyle = style;
+    lightStyle.lightTheme = true;
+    const Rendered light = render(L"73", lightStyle);
+    check(light.coloured > 0, "the light-theme glyph is coloured too, not black");
 
     IconStyle dim = style;
     dim.dimmed = true;

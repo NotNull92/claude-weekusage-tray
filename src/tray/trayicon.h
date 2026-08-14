@@ -14,6 +14,11 @@ struct IconStyle {
     bool dimmed = false;
 };
 
+// The Claude accent orange the glyph is drawn in, shaded for the system theme
+// so it stays legible on both a dark and a light taskbar. Same colour the
+// detail panel uses for its bars.
+COLORREF GlyphColor(bool lightTheme);
+
 // Caller owns the returned icon and must DestroyIcon it.
 HICON CreateLabelIcon(const std::wstring& label, const IconStyle& style);
 
