@@ -1,15 +1,13 @@
-// ClaudeUsageStatusLine - the companion command Claude Code runs as its
-// statusLine.
+// Status-line mode.
 //
-// It reads the status-line payload from stdin, forwards exactly four numbers
-// to a running ClaudeWeekUsageTray on the loopback interface, and then either
-// prints one short line of its own or hands the same input to the status-line
-// command the user already had and prints that command's output unchanged.
-//
-// It never inspects, stores, or forwards anything else from the payload.
+// Claude Code runs `ClaudeWeekUsageTray.exe --statusline` as its statusLine
+// command and pipes a JSON payload to it on stdin. This code picks four
+// numbers out of that payload, sends them to a running tray over loopback, and
+// prints a status line. It never inspects, stores, or forwards anything else.
+#include "statusline.h"
+
 #include <windows.h>
 
-#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -151,32 +149,9 @@ std::string ownStatusLine(const UsageSnapshot& snapshot, bool valid) {
     return text;
 }
 
-void printHelp() {
-    writeStdout(
-        "ClaudeUsageStatusLine\n"
-        "\n"
-        "Claude Code runs this as its statusLine command. It reads the status-line\n"
-        "payload from stdin and forwards only four numbers to a running\n"
-        "ClaudeWeekUsageTray: the used percentage and reset time of the 5-hour and\n"
-        "7-day windows. Nothing else in the payload is read or kept.\n"
-        "\n"
-        "Set it up with:  ClaudeWeekUsageTray.exe --setup\n");
-}
-
 }  // namespace
-}  // namespace cwut
 
-int wmain(int argc, wchar_t** argv) {
-    using namespace cwut;
-
-    for (int i = 1; i < argc; ++i) {
-        const std::wstring arg = argv[i];
-        if (arg == L"--help" || arg == L"-h" || arg == L"/?") {
-            printHelp();
-            return 0;
-        }
-    }
-
+int RunStatusLine() {
     const std::string input = readAllStdin();
 
     UsageSnapshot snapshot;
@@ -201,3 +176,5 @@ int wmain(int argc, wchar_t** argv) {
     if (!line.empty()) writeStdout(line + "\n");
     return 0;
 }
+
+}  // namespace cwut

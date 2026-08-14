@@ -64,7 +64,7 @@ if ($usage -match '(?i)token|secret|credential|apikey|session_id') {
     $failures += 'usage.h declares a field outside the four allowed scalars'
 }
 
-$binaries = @('ClaudeWeekUsageTray.exe', 'ClaudeUsageStatusLine.exe') |
+$binaries = @('ClaudeWeekUsageTray.exe') |
     ForEach-Object { Join-Path $root "build/$_" } |
     Where-Object { Test-Path $_ }
 

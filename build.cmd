@@ -1,8 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
 
-rem Builds ClaudeWeekUsageTray.exe and ClaudeUsageStatusLine.exe with MSVC.
-rem The binaries link the static CRT, so no runtime redistributable is needed.
+rem Builds ClaudeWeekUsageTray.exe with MSVC. One executable does everything:
+rem the tray icon, the setup and cleanup commands, and the status-line mode
+rem Claude Code runs. It links the static CRT, so no runtime redistributable
+rem is needed.
 
 set "ROOT=%~dp0"
 set "OUT=%ROOT%build"
@@ -27,7 +29,6 @@ if errorlevel 1 (
 )
 
 if not exist "%OBJ%\tray" mkdir "%OBJ%\tray"
-if not exist "%OBJ%\statusline" mkdir "%OBJ%\statusline"
 
 set "CFLAGS=/nologo /std:c++17 /EHsc /W4 /permissive- /O2 /MT /GS /Gy /utf-8 /DUNICODE /D_UNICODE /DNDEBUG /D_CRT_SECURE_NO_WARNINGS"
 set "LFLAGS=/nologo /INCREMENTAL:NO /DEBUG:NONE /OPT:REF /OPT:ICF /DYNAMICBASE /NXCOMPAT /HIGHENTROPYVA /guard:cf"
@@ -38,22 +39,15 @@ cl %CFLAGS% /guard:cf /Fo"%OBJ%\tray\\" /Fe"%OUT%\ClaudeWeekUsageTray.exe" ^
    "%ROOT%src\common\ipc.cpp" ^
    "%ROOT%src\tray\main.cpp" "%ROOT%src\tray\panel.cpp" "%ROOT%src\tray\trayicon.cpp" ^
    "%ROOT%src\tray\menu.cpp" "%ROOT%src\tray\cli.cpp" "%ROOT%src\tray\selftest.cpp" ^
+   "%ROOT%src\statusline\statusline.cpp" ^
    /link %LFLAGS% /SUBSYSTEM:WINDOWS
 if errorlevel 1 exit /b 1
 
-echo Building ClaudeUsageStatusLine.exe ...
-cl %CFLAGS% /guard:cf /Fo"%OBJ%\statusline\\" /Fe"%OUT%\ClaudeUsageStatusLine.exe" ^
-   "%ROOT%src\common\json.cpp" "%ROOT%src\common\usage.cpp" "%ROOT%src\common\winutil.cpp" ^
-   "%ROOT%src\common\ipc.cpp" "%ROOT%src\statusline\main.cpp" ^
-   /link %LFLAGS% /SUBSYSTEM:CONSOLE
-if errorlevel 1 exit /b 1
-
-if exist "%ROOT%tools\cleanup-tray-icons.cmd" copy /y "%ROOT%tools\cleanup-tray-icons.cmd" "%OUT%\" >nul
+if exist "%ROOT%uninstall.cmd" copy /y "%ROOT%uninstall.cmd" "%OUT%\" >nul
 
 echo.
 echo Built:
 echo   %OUT%\ClaudeWeekUsageTray.exe
-echo   %OUT%\ClaudeUsageStatusLine.exe
 exit /b 0
 
 :find_vcvars

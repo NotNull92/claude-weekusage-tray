@@ -13,6 +13,7 @@
 #include "../common/ipc.h"
 #include "../common/usage.h"
 #include "../common/winutil.h"
+#include "../statusline/statusline.h"
 #include "cli.h"
 #include "menu.h"
 #include "panel.h"
@@ -24,8 +25,8 @@
 namespace cwut {
 namespace {
 
-const wchar_t* kVersion = L"1.0.1";
-const wchar_t* kWindowClass = L"ClaudeWeekUsageTray.Message";
+const wchar_t* kVersion = L"1.0.2";
+const wchar_t* kWindowClass = kTrayWindowClass;
 const wchar_t* kMutexName = L"Local\\ClaudeWeekUsageTray.SingleInstance";
 
 constexpr UINT WM_TRAY_CALLBACK = WM_APP + 1;
@@ -330,12 +331,12 @@ void printUsage() {
     Out("");
     Out("Usage:");
     Out("  ClaudeWeekUsageTray.exe                    Start the tray icon.");
-    Out("  ClaudeWeekUsageTray.exe --setup            Point Claude Code's status line at the");
-    Out("                                             helper. Refuses to replace an existing");
+    Out("  ClaudeWeekUsageTray.exe --setup            Point Claude Code's status line at this");
+    Out("                                             program. Refuses to replace an existing");
     Out("                                             command unless --wrap-existing is given.");
     Out("  ClaudeWeekUsageTray.exe --setup --wrap-existing");
     Out("                                             Keep the existing status-line command and");
-    Out("                                             run it through the helper.");
+    Out("                                             run it as well.");
     Out("  ClaudeWeekUsageTray.exe --remove-statusline");
     Out("                                             Undo the setup and restore what was there.");
     Out("  ClaudeWeekUsageTray.exe --cleanup-tray-icons [--apply]");
@@ -343,8 +344,14 @@ void printUsage() {
     Out("                                             notification-area entries for this program");
     Out("                                             in your own account. Writes a .reg backup");
     Out("                                             first and never deletes files.");
+    Out("  ClaudeWeekUsageTray.exe --uninstall        Stop the icon, undo the status line, and");
+    Out("                                             clear the notification-area entries. This");
+    Out("                                             is what uninstall.cmd runs.");
     Out("  ClaudeWeekUsageTray.exe --self-test        Run the built-in tests.");
     Out("  ClaudeWeekUsageTray.exe --version");
+    Out("");
+    Out("  ClaudeWeekUsageTray.exe --statusline       Status-line mode. Claude Code runs this");
+    Out("                                             for you; there is no reason to type it.");
     Out("");
     Out("The tray only ever receives four numbers: the used percentage and reset time for");
     Out("the 5-hour and 7-day windows. It does not read credentials and does not call any");
@@ -354,9 +361,20 @@ void printUsage() {
 int dispatch(HINSTANCE instance) {
     int argc = 0;
     LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+
+    // Status-line mode short-circuits everything: Claude Code is waiting on
+    // stdout, so nothing else may print or pop up.
+    for (int i = 1; i < argc; ++i) {
+        if (std::wstring(argv[i]) == L"--statusline") {
+            LocalFree(argv);
+            return RunStatusLine();
+        }
+    }
+
     bool wantSetup = false;
     bool wantRemove = false;
     bool wantCleanup = false;
+    bool wantUninstall = false;
     bool wantSelfTest = false;
     bool wantHelp = false;
     bool wantVersion = false;
@@ -375,6 +393,8 @@ int dispatch(HINSTANCE instance) {
             wantRemove = true;
         } else if (arg == L"--cleanup-tray-icons") {
             wantCleanup = true;
+        } else if (arg == L"--uninstall") {
+            wantUninstall = true;
         } else if (arg == L"--apply") {
             cleanupOptions.apply = true;
         } else if (arg == L"--self-test") {
@@ -407,6 +427,8 @@ int dispatch(HINSTANCE instance) {
         result = RunRemoveStatusLine();
     } else if (wantCleanup) {
         result = RunCleanupTrayIcons(cleanupOptions);
+    } else if (wantUninstall) {
+        result = RunUninstall();
     } else {
         TrayApp app;
         return app.run(instance);

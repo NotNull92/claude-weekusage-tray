@@ -45,9 +45,10 @@ pretending otherwise.
 ## Install
 
 1. Download the release ZIP and unpack it somewhere you intend to keep it, for
-   example `C:\Tools\ClaudeWeekUsageTray`. The program reports the folder it
-   runs from, so moving it later means running setup again.
-2. Check the download against `SHA256SUMS`:
+   example `C:\Tools\ClaudeWeekUsageTray`. It holds two files,
+   `ClaudeWeekUsageTray.exe` and `uninstall.cmd`. The program records the path
+   it runs from, so moving it later means running setup again.
+2. Check the download against the `SHA256SUMS-v*.txt` published beside it:
 
    ```powershell
    Get-FileHash .\ClaudeWeekUsageTray.exe -Algorithm SHA256
@@ -73,8 +74,8 @@ not an error.
 
 ### The EXE is not code-signed
 
-Both executables are unsigned. Windows SmartScreen will warn you the first time
-you run them. If that is not acceptable to you, build from source yourself with
+The executable is unsigned. Windows SmartScreen will warn you the first time
+you run it. If that is not acceptable to you, build from source yourself with
 `build.cmd`; the build needs nothing but Visual Studio's C++ tools.
 
 ## Make the icon visible
@@ -141,13 +142,13 @@ rebuilding the program can leave stale entries in the settings list. To see
 them:
 
 ```powershell
-.\cleanup-tray-icons.cmd
+.\ClaudeWeekUsageTray.exe --cleanup-tray-icons
 ```
 
 To remove the stale ones:
 
 ```powershell
-.\cleanup-tray-icons.cmd --apply
+.\ClaudeWeekUsageTray.exe --cleanup-tray-icons --apply
 ```
 
 This only touches `HKEY_CURRENT_USER\Control Panel\NotifyIconSettings`, only
@@ -157,11 +158,14 @@ never deletes a file.
 
 ## Uninstall
 
-1. **Exit** from the tray menu.
-2. `.\ClaudeWeekUsageTray.exe --remove-statusline`
-3. `.\cleanup-tray-icons.cmd --apply`
-4. Delete the folder, and delete `%LOCALAPPDATA%\ClaudeWeekUsageTray` if you
-   want the backups gone too.
+```powershell
+.\uninstall.cmd
+```
+
+That stops the tray icon, puts your status-line setting back the way it was,
+and clears this program's notification-area entries, writing a `.reg` backup
+first. It deletes no files, so afterwards delete the folder yourself, plus
+`%LOCALAPPDATA%\ClaudeWeekUsageTray` if you do not want to keep the backups.
 
 Nothing else is left behind. There is no installer, no service, and no
 registry key outside the notification-area entry Windows creates for any tray
@@ -177,9 +181,10 @@ pwsh -File .\tools\security-scan.ps1
 
 You need Visual Studio 2019 or later with **Desktop development with C++**.
 There is no other dependency: native Win32 and C++17, static CRT, no .NET, no
-third-party library. `build.cmd clean` removes the output.
+third-party library. Everything links into one executable. `build.cmd clean`
+removes the output.
 
-To produce a release ZIP with `SHA256SUMS`:
+To produce the release ZIP and its `SHA256SUMS-v*.txt`:
 
 ```powershell
 pwsh -File .\tools\package.ps1
@@ -188,10 +193,16 @@ pwsh -File .\tools\package.ps1
 ## How it works
 
 Claude Code runs its `statusLine` command on every render and pipes a JSON
-payload to it on stdin. `ClaudeUsageStatusLine.exe` reads that payload, picks
-out four numbers, and sends them to the running tray over a loopback TCP
+payload to it on stdin. That command is this same executable started as
+`ClaudeWeekUsageTray.exe --statusline`. In that mode it reads the payload,
+picks out four numbers, and sends them to the running tray over a loopback TCP
 connection guarded by a 256-bit token stored in a file readable only by your
 account. Nothing else in the payload is read, kept, or forwarded.
+
+One caveat if you try that by hand: PowerShell does not wait for a
+GUI-subsystem program, so `echo '{...}' | .\ClaudeWeekUsageTray.exe
+--statusline` returns before the output arrives. Claude Code reads the pipe
+properly. To see it yourself, run it through `cmd /c` instead.
 
 This is event-driven. The tray updates when Claude Code sends something. A
 30-second timer inside the tray only re-renders what it already has, so the

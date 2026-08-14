@@ -1,17 +1,18 @@
-# Builds, tests, and packages a release ZIP with a SHA256SUMS manifest.
+# Builds, tests, and packages a release.
 #
 #   pwsh -File tools/package.ps1
 #
-# The ZIP contains the two executables, the cleanup command, the licence, and
-# the documentation. It contains no PDBs, no runtime redistributable, and no
-# secrets.
+# Produces two files in dist/:
+#   ClaudeWeekUsageTray-win-x64-v<version>.zip   the executable and uninstall.cmd
+#   SHA256SUMS-v<version>.txt                    hashes of the executable and the zip
+#
+# The ZIP holds nothing else. No PDBs, no runtime redistributable, no secrets.
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $build = Join-Path $root 'build'
 $dist = Join-Path $root 'dist'
-$version = '1.0.1'
-$name = "ClaudeWeekUsageTray-v$version-win-x64"
+$version = '1.0.2'
 
 Write-Host '== Building =='
 & cmd /c "`"$(Join-Path $root 'build.cmd')`""
@@ -26,18 +27,13 @@ Write-Host '== Security scan =='
 if ($LASTEXITCODE -ne 0) { throw 'security scan failed' }
 
 Write-Host '== Staging =='
-$stage = Join-Path $dist $name
+$stage = Join-Path $dist 'stage'
 if (Test-Path $stage) { Remove-Item -Recurse -Force -LiteralPath $stage }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
 $payload = @(
     (Join-Path $build 'ClaudeWeekUsageTray.exe'),
-    (Join-Path $build 'ClaudeUsageStatusLine.exe'),
-    (Join-Path $root 'tools/cleanup-tray-icons.cmd'),
-    (Join-Path $root 'README.md'),
-    (Join-Path $root 'README.ko.md'),
-    (Join-Path $root 'SECURITY.md'),
-    (Join-Path $root 'LICENSE')
+    (Join-Path $root 'uninstall.cmd')
 )
 foreach ($file in $payload) {
     if (-not (Test-Path $file)) { throw "missing $file" }
@@ -45,26 +41,31 @@ foreach ($file in $payload) {
 }
 
 # Refuse to ship anything that should never be in a release.
-$forbidden = Get-ChildItem -Path $stage -Recurse -Include *.pdb, *.ilk, *.obj, *.json
-if ($forbidden) { throw "unexpected files staged: $($forbidden.Name -join ', ')" }
-
-Write-Host '== SHA256SUMS =='
-$lines = Get-ChildItem -Path $stage -File | Sort-Object Name | ForEach-Object {
-    $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower()
-    "$hash  $($_.Name)"
-}
-$manifest = Join-Path $stage 'SHA256SUMS'
-[System.IO.File]::WriteAllText($manifest, ($lines -join "`n") + "`n")
-$lines | ForEach-Object { Write-Host "  $_" }
+$unexpected = Get-ChildItem -Path $stage -Recurse |
+    Where-Object { $_.Name -notin @('ClaudeWeekUsageTray.exe', 'uninstall.cmd') }
+if ($unexpected) { throw "unexpected files staged: $($unexpected.Name -join ', ')" }
 
 Write-Host '== Zipping =='
-$zip = Join-Path $dist "$name.zip"
+$zip = Join-Path $dist "ClaudeWeekUsageTray-win-x64-v$version.zip"
 if (Test-Path $zip) { Remove-Item -Force -LiteralPath $zip }
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip
 
-$zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLower()
+Write-Host '== SHA256SUMS =='
+# The manifest ships beside the ZIP rather than inside it, so it can be used to
+# check the download before anything is unpacked.
+$lines = @(
+    (Join-Path $stage 'ClaudeWeekUsageTray.exe'),
+    $zip
+) | ForEach-Object {
+    $hash = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLower()
+    "$hash  $(Split-Path -Leaf $_)"
+}
+$manifest = Join-Path $dist "SHA256SUMS-v$version.txt"
+[System.IO.File]::WriteAllText($manifest, ($lines -join "`n") + "`n")
+$lines | ForEach-Object { Write-Host "  $_" }
+
 Write-Host ''
 Write-Host "Release: $zip"
-Write-Host "SHA256:  $zipHash"
+Write-Host "Manifest: $manifest"
 Write-Host ''
-Write-Host 'Both executables are unsigned.'
+Write-Host 'The executable is unsigned.'

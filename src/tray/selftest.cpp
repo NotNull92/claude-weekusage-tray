@@ -346,7 +346,89 @@ void testIpc() {
     CloseHandle(arrived);
 }
 
-// Reads the shipped binaries back off disk and proves the strings a
+// Runs this executable in status-line mode the way Claude Code does: payload
+// in on a stdin pipe, status line out on a stdout pipe. A GUI-subsystem
+// program keeps both handles when they are redirected, and this proves it.
+void testStatusLineMode() {
+    Out("Status-line mode");
+
+    // Point the child at an empty application-data folder so it finds no
+    // endpoint file and cannot disturb a tray the user has running.
+    wchar_t previousLocalAppData[MAX_PATH] = {0};
+    GetEnvironmentVariableW(L"LOCALAPPDATA", previousLocalAppData, MAX_PATH);
+    wchar_t sandbox[MAX_PATH] = {0};
+    GetTempPathW(MAX_PATH, sandbox);
+    wcscat_s(sandbox, L"cwut-selftest");
+    CreateDirectoryW(sandbox, nullptr);
+    SetEnvironmentVariableW(L"LOCALAPPDATA", sandbox);
+
+    SECURITY_ATTRIBUTES inherit{};
+    inherit.nLength = sizeof(inherit);
+    inherit.bInheritHandle = TRUE;
+    HANDLE inRead = nullptr, inWrite = nullptr, outRead = nullptr, outWrite = nullptr;
+    bool piped = CreatePipe(&inRead, &inWrite, &inherit, 0) != 0 &&
+                 CreatePipe(&outRead, &outWrite, &inherit, 0) != 0;
+    check(piped, "test pipes are created");
+    if (piped) {
+        SetHandleInformation(inWrite, HANDLE_FLAG_INHERIT, 0);
+        SetHandleInformation(outRead, HANDLE_FLAG_INHERIT, 0);
+
+        std::wstring command = L"\"" + GetExecutablePath() + L"\" --statusline";
+        std::vector<wchar_t> mutableCommand(command.begin(), command.end());
+        mutableCommand.push_back(L'\0');
+
+        STARTUPINFOW startup{};
+        startup.cb = sizeof(startup);
+        startup.dwFlags = STARTF_USESTDHANDLES;
+        startup.hStdInput = inRead;
+        startup.hStdOutput = outWrite;
+        startup.hStdError = outWrite;
+        PROCESS_INFORMATION process{};
+        BOOL started = CreateProcessW(nullptr, mutableCommand.data(), nullptr, nullptr, TRUE, 0,
+                                      nullptr, nullptr, &startup, &process);
+        CloseHandle(inRead);
+        CloseHandle(outWrite);
+        check(started != 0, "status-line mode starts");
+
+        std::string output;
+        if (started) {
+            const std::string payload(kReferencePayload);
+            DWORD written = 0;
+            WriteFile(inWrite, payload.data(), static_cast<DWORD>(payload.size()), &written,
+                      nullptr);
+            CloseHandle(inWrite);
+            char buffer[512];
+            for (;;) {
+                DWORD read = 0;
+                if (!ReadFile(outRead, buffer, sizeof(buffer), &read, nullptr) || read == 0) break;
+                output.append(buffer, read);
+                if (output.size() > 4096) break;
+            }
+            WaitForSingleObject(process.hProcess, 15000);
+            DWORD exitCode = 1;
+            GetExitCodeProcess(process.hProcess, &exitCode);
+            CloseHandle(process.hThread);
+            CloseHandle(process.hProcess);
+            check(exitCode == 0, "status-line mode exits cleanly");
+        } else {
+            CloseHandle(inWrite);
+        }
+        CloseHandle(outRead);
+
+        check(output.find("5h 73% left") != std::string::npos,
+              "status line reports 73% of the five-hour window left");
+        check(output.find("7d 59% left") != std::string::npos,
+              "status line reports 59% of the seven-day window left");
+        check(output.find("session") == std::string::npos,
+              "status line echoes nothing else from the payload");
+    }
+
+    SetEnvironmentVariableW(L"LOCALAPPDATA",
+                            previousLocalAppData[0] != L'\0' ? previousLocalAppData : nullptr);
+    RemoveDirectoryW(sandbox);
+}
+
+// Reads the shipped binary back off disk and proves the strings a
 // credential-reading build would need are simply not in them. The needles are
 // stored reversed so this test does not put them in the binary itself.
 void testNoTokenBoundary() {
@@ -364,8 +446,6 @@ void testNoTokenBoundary() {
 
     std::vector<std::wstring> binaries;
     binaries.push_back(GetExecutablePath());
-    const std::wstring helper = StatusLineHelperPath();
-    if (FileExists(helper)) binaries.push_back(helper);
 
     bool clean = true;
     for (const std::wstring& binary : binaries) {
@@ -395,7 +475,7 @@ void testNoTokenBoundary() {
             }
         }
     }
-    check(clean, "shipped binaries contain no credential or token strings");
+    check(clean, "the shipped binary contains no credential or token strings");
 
     // The data model has nowhere to put a secret even if one were handed over.
     check(sizeof(UsageSnapshot) <= 64, "the snapshot holds only the four scalars and a timestamp");
@@ -413,6 +493,7 @@ int RunSelfTest() {
     testIcon();
     testMenuAndPanel();
     testIpc();
+    testStatusLineMode();
     testNoTokenBoundary();
     Out("");
     Out(std::to_string(g_passed) + " passed, " + std::to_string(g_failed) + " failed");

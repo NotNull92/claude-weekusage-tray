@@ -7,6 +7,7 @@
 
 #include "../common/json.h"
 #include "../common/winutil.h"
+#include "menu.h"
 
 namespace cwut {
 namespace {
@@ -18,8 +19,7 @@ std::wstring g_buffered;
 
 const wchar_t* kNotifyIconSettings = L"Control Panel\\NotifyIconSettings";
 const wchar_t* kTrayExeName = L"claudeweekusagetray.exe";
-const wchar_t* kHelperExeName = L"ClaudeUsageStatusLine.exe";
-const wchar_t* kHelperMarker = L"claudeusagestatusline";
+const wchar_t* kStatusLineFlag = L"--statusline";
 
 std::wstring toLower(const std::wstring& text) {
     std::wstring out = text;
@@ -47,8 +47,13 @@ std::wstring wrappedConfigPath() {
     return dir + L"\\wrapped-statusline.json";
 }
 
+// True only when the command runs this program in status-line mode. Both
+// halves must match so a user command that merely mentions one of them is not
+// mistaken for ours.
 bool commandIsOurs(const std::wstring& command) {
-    return toLower(command).find(kHelperMarker) != std::wstring::npos;
+    const std::wstring lower = toLower(command);
+    return lower.find(kTrayExeName) != std::wstring::npos &&
+           lower.find(kStatusLineFlag) != std::wstring::npos;
 }
 
 }  // namespace
@@ -89,10 +94,12 @@ void FlushOut() {
     }
 }
 
-std::wstring StatusLineHelperPath() {
-    std::wstring dir = GetExecutableDir();
-    if (dir.empty()) return std::wstring();
-    return dir + L"\\" + kHelperExeName;
+std::wstring StatusLineCommand() {
+    const std::wstring exe = GetExecutablePath();
+    if (exe.empty()) return std::wstring();
+    // Quoted, because the path routinely contains spaces and Claude Code hands
+    // the string to a shell.
+    return L"\"" + exe + L"\" " + kStatusLineFlag;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +108,7 @@ std::wstring StatusLineHelperPath() {
 
 namespace {
 
-void printManualInstructions(const std::wstring& helper) {
+void printManualInstructions(const std::wstring& command) {
     Out("");
     Out("Nothing was changed. To connect the tray by hand, add this to the");
     Out("\"statusLine\" section of " + ToUtf8(GetClaudeSettingsPath()) + ":");
@@ -109,13 +116,13 @@ void printManualInstructions(const std::wstring& helper) {
     Out("  \"statusLine\": {");
     Out("    \"type\": \"command\",");
     // Escaped so the line can be pasted into settings.json as it stands.
-    Out("    \"command\": \"" + JsonEscape(ToUtf8(helper)) + "\"");
+    Out("    \"command\": \"" + JsonEscape(ToUtf8(command)) + "\"");
     Out("  }");
     Out("");
     Out("If you already run your own status-line command, call it from a small");
-    Out("script of your own that also pipes the same stdin into the helper. The");
-    Out("helper reads stdin, forwards two percentages and two reset times to the");
-    Out("tray, and prints whatever the wrapped command printed.");
+    Out("script of your own that also pipes the same stdin into the command");
+    Out("above. In status-line mode this program reads stdin, forwards two");
+    Out("percentages and two reset times to the tray, and prints nothing else.");
 }
 
 bool backupSettings(const std::wstring& path, const std::string& contents, std::wstring& backupOut) {
@@ -126,10 +133,9 @@ bool backupSettings(const std::wstring& path, const std::string& contents, std::
 }  // namespace
 
 int RunSetup(const SetupOptions& options) {
-    const std::wstring helper = StatusLineHelperPath();
-    if (helper.empty() || !FileExists(helper)) {
-        Out("Cannot find " + ToUtf8(std::wstring(kHelperExeName)) + " next to the tray program.");
-        Out("Keep both files in the same folder and run setup again.");
+    const std::wstring helper = StatusLineCommand();
+    if (helper.empty()) {
+        Out("Cannot determine this program's own path, so setup cannot continue.");
         return 2;
     }
     const std::wstring settingsPath = GetClaudeSettingsPath();
@@ -449,13 +455,15 @@ int RunCleanupTrayIcons(const CleanupOptions& options) {
 
     std::vector<NotifyEntry> stale;
     for (const NotifyEntry& entry : ours) {
-        if (toLower(entry.executablePath) != currentExe) stale.push_back(entry);
+        if (options.includeCurrent || toLower(entry.executablePath) != currentExe) {
+            stale.push_back(entry);
+        }
     }
 
     Out("ClaudeWeekUsageTray entries under HKEY_CURRENT_USER\\" + ToUtf8(std::wstring(kNotifyIconSettings)) + ":");
     for (const NotifyEntry& entry : ours) {
-        const bool keep = toLower(entry.executablePath) == currentExe;
-        Out(std::string(keep ? "  keep    " : "  stale   ") + ToUtf8(entry.executablePath));
+        const bool keep = !options.includeCurrent && toLower(entry.executablePath) == currentExe;
+        Out(std::string(keep ? "  keep    " : "  remove  ") + ToUtf8(entry.executablePath));
     }
     if (stale.empty()) {
         Out("");
@@ -491,9 +499,54 @@ int RunCleanupTrayIcons(const CleanupOptions& options) {
             Out("Could not remove " + ToUtf8(entry.subKey) + ".");
         }
     }
-    Out("Removed " + std::to_string(removed) + " stale entries. No files were deleted.");
+    Out("Removed " + std::to_string(removed) + (removed == 1 ? " entry." : " entries.") +
+        " No files were deleted.");
     Out("To undo, double-click the .reg backup above and sign out and back in.");
     return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Uninstall
+// ---------------------------------------------------------------------------
+
+int RunUninstall() {
+    Out("Removing ClaudeWeekUsageTray from your account.");
+    Out("");
+
+    Out("1. Stopping the tray icon");
+    HWND running = FindWindowW(kTrayWindowClass, nullptr);
+    if (running != nullptr) {
+        PostMessageW(running, WM_COMMAND, kCommandExit, 0);
+        // Give the icon a moment to leave the notification area, so the
+        // registry cleanup below sees the finished state.
+        Sleep(700);
+        Out("   Stopped.");
+    } else {
+        Out("   It was not running.");
+    }
+    Out("");
+
+    Out("2. Claude Code status line");
+    const int statusLineResult = RunRemoveStatusLine();
+    Out("");
+
+    Out("3. Notification-area entries");
+    CleanupOptions cleanup;
+    cleanup.apply = true;
+    cleanup.includeCurrent = true;  // Uninstalling, so this copy goes too.
+    const int cleanupResult = RunCleanupTrayIcons(cleanup);
+    Out("");
+
+    Out("4. What is left for you");
+    Out("   Delete the folder this program is in.");
+    Out("   Backups are kept in %LOCALAPPDATA%\\ClaudeWeekUsageTray; delete that");
+    Out("   folder too if you do not want to keep them.");
+    Out("");
+    Out("This command deleted no files.");
+
+    // A status line that was never ours, or an already clean registry, is not
+    // a failure. Only a hard error is.
+    return (statusLineResult == 2 || cleanupResult == 2) ? 2 : 0;
 }
 
 }  // namespace cwut

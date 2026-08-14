@@ -12,7 +12,8 @@ should be impossible for it to leak a secret, because it never has one.
 | `seven_day.used_percentage` | Claude Code status-line payload | memory only |
 | `seven_day.resets_at` | Claude Code status-line payload | memory only |
 
-Plus the local time each snapshot arrived, stamped by the tray itself.
+Plus the local time each snapshot arrived, stamped by the tray itself rather
+than taken from the sender.
 
 Usage figures are never written to disk. Restarting the tray resets it to `--`
 until Claude Code sends something new.
@@ -29,8 +30,8 @@ until Claude Code sends something new.
 The status-line payload contains more than the rate limits. The parser reaches
 for `rate_limits.five_hour` and `rate_limits.seven_day` and copies four numeric
 values out of them. Every other key is left in the parsed document and
-discarded when it goes out of scope. The one place data leaves the helper is
-the wire message, which is six ASCII fields long and has nowhere to put
+discarded when it goes out of scope. The one place data leaves status-line mode
+is the wire message, which is six ASCII fields long and has nowhere to put
 anything else.
 
 ## The local channel
@@ -77,16 +78,17 @@ Every one of these rules has a test in `--self-test`.
 pwsh -File .\tools\security-scan.ps1
 ```
 
-`--self-test` includes a check that reads the shipped binaries back off disk
-and confirms the strings a credential-reading build would need are simply not
+`--self-test` includes a check that reads the shipped binary back off disk and
+confirms the strings a credential-reading build would need are simply not
 present, in both ASCII and UTF-16. `security-scan.ps1` does the same against
 the source with comments stripped, and additionally asserts that the listener
 is pinned to loopback and that the data model declares no field outside the
 four scalars.
 
-To watch it at runtime, Process Monitor filtered to the two executables shows
-file activity limited to `%LOCALAPPDATA%\ClaudeWeekUsageTray`, and
-`~/.claude/settings.json` only while `--setup` or `--remove-statusline` runs.
+To watch it at runtime, Process Monitor filtered to `ClaudeWeekUsageTray.exe`
+shows file activity limited to `%LOCALAPPDATA%\ClaudeWeekUsageTray`, and
+`~/.claude/settings.json` only while `--setup`, `--remove-statusline`, or
+`--uninstall` runs.
 
 ## Reporting a problem
 

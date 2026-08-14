@@ -2,32 +2,43 @@
 
 ## Shape
 
-Two executables and a shared core.
+One executable with two lifetimes.
 
 ```
-ClaudeUsageStatusLine.exe          ClaudeWeekUsageTray.exe
-  reads stdin JSON                   Shell_NotifyIcon glyph
-  extracts 4 scalars                 detail panel (GDI)
-  sends over loopback  ----------->  loopback listener
-  runs the wrapped command           setup / cleanup / self-test
+ClaudeWeekUsageTray.exe --statusline      ClaudeWeekUsageTray.exe
+  started by Claude Code per render         resident, started by you
+  reads stdin JSON                          Shell_NotifyIcon glyph
+  extracts 4 scalars                        detail panel (GDI)
+  sends over loopback  ------------------>  loopback listener
+  runs the wrapped command                  setup / cleanup / uninstall
+  exits                                     self-test
 ```
 
-`src/common` holds everything both need: a small JSON reader, the usage model
+`src/common` holds what both modes need: a small JSON reader, the usage model
 and its validation rules, the IPC wire format, and a handful of Windows
-helpers. `src/tray` and `src/statusline` hold the parts that differ.
+helpers. `src/tray` is the resident half, `src/statusline` the per-render half.
 
 Native Win32 and C++17, static CRT, no .NET, no third-party library. The
 resident process is a message loop, one listener thread, and two windows.
 
-## Why a separate helper process
+## Why two lifetimes, and why one file
 
 Claude Code runs its `statusLine` command on every render, then throws it away.
 That is the wrong lifetime for a tray icon, so the icon lives in a resident
-process and the short-lived command only forwards.
+process and the short-lived command only forwards to it.
 
-Keeping them as separate executables also keeps their jobs separate: the
-helper is a console program that reads stdin and writes stdout, the tray is a
-GUI program that never has either.
+They could be two executables, and were at first. One file ships instead,
+because a release the user has to keep two matched binaries together is a
+release that breaks when one of them is moved. The modes share the parser and
+the wire format anyway, so splitting them bought nothing but a second file to
+lose.
+
+The single binary is GUI-subsystem, so starting the tray from Explorer never
+flashes a console. That does not cost the status-line mode anything: stdin and
+stdout are inherited handles, and a process gets them whether or not it has a
+console. The only visible consequence is that PowerShell does not wait for a
+GUI-subsystem child, which makes manual testing at a prompt look wrong even
+though Claude Code reads the pipe correctly.
 
 ## Why loopback TCP
 
@@ -75,8 +86,9 @@ The parser has one job it must not get wrong: never invent a figure. So
   substitutes for it
 
 `--self-test` covers each of these, plus the IPC round trip, token rejection,
-oversized and malformed messages, the rendered glyph, the menu, and the panel's
-show/hide behaviour.
+oversized and malformed messages, the rendered glyph, the menu, the panel's
+show/hide behaviour, and one end-to-end run of status-line mode through real
+stdin and stdout pipes.
 
 ## Event-driven, and honest about it
 
@@ -98,7 +110,7 @@ inherently destructive. The rules the setup follows:
 2. Already ours: do nothing and say so.
 3. A `{ type: "command", command: "<string>" }` entry that is not ours: refuse,
    and print what `--wrap-existing` would do. With that flag, record the
-   original command, install the helper, and have the helper run the original
+   original command, install ours, and have status-line mode run the original
    with the same stdin and print its output unchanged.
 4. Anything else, including a file that does not parse as JSON: change nothing
    and print the lines to add by hand.

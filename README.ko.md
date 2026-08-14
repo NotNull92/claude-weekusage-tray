@@ -41,9 +41,10 @@ Claude Code 구독 사용량이 얼마나 남았는지 보여주는 작은 Windo
 ## 설치
 
 1. 릴리스 ZIP을 계속 보관할 위치에 풀어 놓습니다. 예: `C:\Tools\ClaudeWeekUsageTray`.
-   프로그램은 자신이 실행된 폴더 경로를 설정에 기록하므로, 나중에 폴더를 옮기면
+   안에는 `ClaudeWeekUsageTray.exe`와 `uninstall.cmd` 두 개가 있습니다.
+   프로그램은 자신이 실행된 경로를 설정에 기록하므로, 나중에 폴더를 옮기면
    설정을 다시 실행해야 합니다.
-2. `SHA256SUMS`로 파일을 확인합니다.
+2. 릴리스에 함께 올라온 `SHA256SUMS-v*.txt`로 파일을 확인합니다.
 
    ```powershell
    Get-FileHash .\ClaudeWeekUsageTray.exe -Algorithm SHA256
@@ -69,8 +70,8 @@ Claude Code 구독 사용량이 얼마나 남았는지 보여주는 작은 Windo
 
 ### 실행 파일에 코드 서명이 없습니다
 
-두 실행 파일 모두 서명되어 있지 않습니다. 처음 실행할 때 Windows SmartScreen
-경고가 나타납니다. 그것이 받아들이기 어렵다면 `build.cmd`로 직접 빌드하십시오.
+실행 파일에 서명이 없습니다. 처음 실행할 때 Windows SmartScreen 경고가
+나타납니다. 그것이 받아들이기 어렵다면 `build.cmd`로 직접 빌드하십시오.
 Visual Studio의 C++ 도구 외에는 아무것도 필요하지 않습니다.
 
 ## 아이콘 보이게 하기
@@ -134,13 +135,13 @@ Windows는 실행 파일 경로마다 알림 영역 항목을 따로 기억합�
 옮기거나 다시 빌드하면 설정 목록에 오래된 항목이 남을 수 있습니다. 확인:
 
 ```powershell
-.\cleanup-tray-icons.cmd
+.\ClaudeWeekUsageTray.exe --cleanup-tray-icons
 ```
 
 제거:
 
 ```powershell
-.\cleanup-tray-icons.cmd --apply
+.\ClaudeWeekUsageTray.exe --cleanup-tray-icons --apply
 ```
 
 이 명령은 `HKEY_CURRENT_USER\Control Panel\NotifyIconSettings`만, 실행 파일이
@@ -149,11 +150,14 @@ Windows는 실행 파일 경로마다 알림 영역 항목을 따로 기억합�
 
 ## 제거
 
-1. 트레이 메뉴에서 **Exit**.
-2. `.\ClaudeWeekUsageTray.exe --remove-statusline`
-3. `.\cleanup-tray-icons.cmd --apply`
-4. 폴더를 삭제합니다. 백업까지 지우려면 `%LOCALAPPDATA%\ClaudeWeekUsageTray`도
-   삭제합니다.
+```powershell
+.\uninstall.cmd
+```
+
+트레이 아이콘을 종료하고, 상태 표시줄 설정을 원래대로 되돌리고, 이 프로그램의
+알림 영역 항목을 `.reg` 백업을 남긴 뒤 정리합니다. 파일은 지우지 않으므로
+폴더는 직접 삭제하시고, 백업까지 필요 없다면
+`%LOCALAPPDATA%\ClaudeWeekUsageTray`도 삭제하십시오.
 
 그 외에 남는 것은 없습니다. 설치 관리자도, 서비스도, 트레이 프로그램이라면
 Windows가 으레 만드는 알림 영역 항목 외의 레지스트리 키도 없습니다.
@@ -168,9 +172,10 @@ pwsh -File .\tools\security-scan.ps1
 
 Visual Studio 2019 이상 + **C++를 사용한 데스크톱 개발**이 필요합니다. 그 외
 의존성은 없습니다. 네이티브 Win32와 C++17, 정적 CRT, .NET 없음, 서드파티
-라이브러리 없음. `build.cmd clean`으로 결과물을 지웁니다.
+라이브러리 없음. 모든 기능이 실행 파일 하나로 링크됩니다. `build.cmd clean`으로
+결과물을 지웁니다.
 
-`SHA256SUMS`가 포함된 릴리스 ZIP을 만들려면:
+릴리스 ZIP과 `SHA256SUMS-v*.txt`를 만들려면:
 
 ```powershell
 pwsh -File .\tools\package.ps1
@@ -179,10 +184,16 @@ pwsh -File .\tools\package.ps1
 ## 동작 방식
 
 Claude Code는 화면을 그릴 때마다 `statusLine` 명령을 실행하고 JSON 데이터를
-표준 입력으로 넘깁니다. `ClaudeUsageStatusLine.exe`는 그 데이터에서 네 개의
-숫자만 골라, 실행 중인 트레이에 루프백 TCP로 보냅니다. 이 연결은 현재 계정만
-읽을 수 있는 파일에 저장된 256비트 토큰으로 보호됩니다. 데이터의 나머지 부분은
-읽지도, 보관하지도, 전달하지도 않습니다.
+표준 입력으로 넘깁니다. 그 명령이 바로 이 실행 파일을
+`ClaudeWeekUsageTray.exe --statusline`으로 띄운 것입니다. 이 모드에서는 데이터
+중 네 개의 숫자만 골라 실행 중인 트레이에 루프백 TCP로 보냅니다. 이 연결은
+현재 계정만 읽을 수 있는 파일에 저장된 256비트 토큰으로 보호됩니다. 나머지
+부분은 읽지도, 보관하지도, 전달하지도 않습니다.
+
+직접 시험해 볼 때 한 가지 주의점: PowerShell은 GUI 서브시스템 프로그램을
+기다리지 않으므로 `echo '{...}' | .\ClaudeWeekUsageTray.exe --statusline`은
+출력이 나오기 전에 프롬프트가 돌아옵니다. Claude Code는 파이프를 제대로
+읽습니다. 눈으로 확인하려면 `cmd /c`를 통해 실행하십시오.
 
 이 구조는 이벤트 기반입니다. Claude Code가 무언가를 보낼 때만 갱신됩니다.
 트레이 안의 30초 타이머는 이미 가지고 있는 값을 다시 그릴 뿐입니다. 숫자가
