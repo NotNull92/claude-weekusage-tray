@@ -14,6 +14,11 @@ inline constexpr const wchar_t* kTrayWindowClass = L"ClaudeWeekUsageTray.Message
 void Out(const std::string& line);
 void FlushOut();
 
+// Diverts Out() into a buffer instead of a console, so the dialog can show what
+// a command reported rather than leaving it to a second window.
+void BeginCapture();
+std::wstring EndCapture();
+
 struct SetupOptions {
     // Required before an existing user statusLine may be wrapped.
     bool wrapExisting = false;
@@ -41,7 +46,13 @@ StatusLineState InspectStatusLine(std::wstring& command);
 // offers to fix it. Nothing is written unless the user agrees.
 void OfferStatusLineSetup();
 
-int RunSetup(const SetupOptions& options);
+struct SetupOutcome {
+    std::wstring backupPath;      // empty when there was nothing to back up
+    std::wstring previousCommand; // what was there before, if anything
+    bool repointed = false;       // the same program at a different path
+};
+
+int RunSetup(const SetupOptions& options, SetupOutcome* outcome = nullptr);
 int RunRemoveStatusLine();
 
 struct CleanupOptions {

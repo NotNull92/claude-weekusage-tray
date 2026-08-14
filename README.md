@@ -57,7 +57,7 @@ pretending otherwise.
 3. Run `ClaudeWeekUsageTray.exe`.
 
    Claude Code has to be told to send usage, so on startup the program checks
-   whether that is set up and offers to do it if not. Answer **Yes** and it
+   whether that is set up and offers to do it if not. Answer **Connect** and it
    writes the setting for you, after backing your settings file up. If you
    already run your own status-line command it says so first, and keeps that
    command.

@@ -25,7 +25,7 @@
 namespace cwut {
 namespace {
 
-const wchar_t* kVersion = L"1.0.4";
+const wchar_t* kVersion = L"1.0.5";
 const wchar_t* kWindowClass = kTrayWindowClass;
 const wchar_t* kMutexName = L"Local\\ClaudeWeekUsageTray.SingleInstance";
 

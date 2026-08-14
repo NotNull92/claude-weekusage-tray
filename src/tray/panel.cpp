@@ -5,6 +5,7 @@
 #include <string>
 
 #include "../common/winutil.h"
+#include "theme.h"
 
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "user32.lib")
@@ -15,71 +16,6 @@ namespace {
 const wchar_t* kPanelClass = L"ClaudeWeekUsageTray.Panel";
 constexpr int kBaseWidth = 322;
 constexpr unsigned long long kFocusGraceMs = 700;
-
-struct Palette {
-    COLORREF background;
-    COLORREF border;
-    COLORREF text;
-    COLORREF muted;
-    COLORREF accent;
-    COLORREF track;
-    COLORREF warning;
-};
-
-Palette palette(bool light) {
-    Palette p{};
-    if (light) {
-        p.background = RGB(0xFF, 0xFF, 0xFF);
-        p.border = RGB(0xD6, 0xD3, 0xD1);
-        p.text = RGB(0x1C, 0x1B, 0x1A);
-        p.muted = RGB(0x6B, 0x66, 0x62);
-        p.accent = RGB(0xC1, 0x5F, 0x3C);
-        p.track = RGB(0xE7, 0xE5, 0xE4);
-        p.warning = RGB(0x9A, 0x62, 0x00);
-    } else {
-        p.background = RGB(0x1B, 0x1A, 0x19);
-        p.border = RGB(0x3A, 0x37, 0x35);
-        p.text = RGB(0xF5, 0xF3, 0xF1);
-        p.muted = RGB(0xA3, 0x9E, 0x99);
-        p.accent = RGB(0xD9, 0x77, 0x57);
-        p.track = RGB(0x33, 0x30, 0x2E);
-        p.warning = RGB(0xE0, 0xA4, 0x4C);
-    }
-    return p;
-}
-
-int dpiForWindow(HWND hwnd) {
-    using GetDpiForWindowFn = UINT(WINAPI*)(HWND);
-    static GetDpiForWindowFn fn = reinterpret_cast<GetDpiForWindowFn>(
-        GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetDpiForWindow"));
-    if (fn != nullptr && hwnd != nullptr) {
-        UINT dpi = fn(hwnd);
-        if (dpi >= 72) return static_cast<int>(dpi);
-    }
-    HDC dc = GetDC(nullptr);
-    int dpi = dc != nullptr ? GetDeviceCaps(dc, LOGPIXELSX) : 96;
-    if (dc != nullptr) ReleaseDC(nullptr, dc);
-    return dpi >= 72 ? dpi : 96;
-}
-
-int scaled(int value, int dpi) { return MulDiv(value, dpi, 96); }
-
-HFONT makeFont(int pointsTimesTen, int weight, int dpi) {
-    LOGFONTW lf{};
-    lf.lfHeight = -MulDiv(pointsTimesTen, dpi, 720);
-    lf.lfWeight = weight;
-    lf.lfCharSet = DEFAULT_CHARSET;
-    lf.lfQuality = CLEARTYPE_QUALITY;
-    lf.lfPitchAndFamily = DEFAULT_PITCH | FF_SWISS;
-    wcscpy_s(lf.lfFaceName, L"Segoe UI");
-    return CreateFontIndirectW(&lf);
-}
-
-void fill(HDC dc, const RECT& rect, COLORREF color) {
-    HBRUSH brush = CreateSolidBrush(color);
-    FillRect(dc, &rect, brush);
-    DeleteObject(brush);
-}
 
 std::wstring remainingText(const RateWindow& window) {
     if (!window.hasUsage) return L"Unavailable";
@@ -93,18 +29,18 @@ std::wstring remainingText(const RateWindow& window) {
 static int renderPanel(HDC dc, int width, int dpi, const UsageSnapshot& snapshot, bool draw,
                        RECT* closeButtonOut) {
     const bool light = SystemUsesLightTheme();
-    const Palette colors = palette(light);
+    const Palette colors = ThemePalette(light);
     const long long now = NowUnix();
     const bool stale = IsStale(snapshot, now);
     const bool haveData = snapshot.receivedAtUnix != 0 && snapshot.hasAnyUsage();
 
-    HFONT fontTitle = makeFont(150, FW_BOLD, dpi);
-    HFONT fontSection = makeFont(85, FW_SEMIBOLD, dpi);
-    HFONT fontValue = makeFont(150, FW_BOLD, dpi);
-    HFONT fontBody = makeFont(95, FW_NORMAL, dpi);
-    HFONT fontSmall = makeFont(85, FW_NORMAL, dpi);
+    HFONT fontTitle = MakeFont(150, FW_BOLD, dpi);
+    HFONT fontSection = MakeFont(85, FW_SEMIBOLD, dpi);
+    HFONT fontValue = MakeFont(150, FW_BOLD, dpi);
+    HFONT fontBody = MakeFont(95, FW_NORMAL, dpi);
+    HFONT fontSmall = MakeFont(85, FW_NORMAL, dpi);
 
-    const int padding = scaled(16, dpi);
+    const int padding = Scaled(16, dpi);
     const int contentWidth = width - padding * 2;
     int y = padding;
 
@@ -121,7 +57,7 @@ static int renderPanel(HDC dc, int width, int dpi, const UsageSnapshot& snapshot
     };
 
     auto drawWrapped = [&](const std::wstring& text, HFONT font, COLORREF color) {
-        RECT rect{padding, y, padding + contentWidth, y + scaled(200, dpi)};
+        RECT rect{padding, y, padding + contentWidth, y + Scaled(200, dpi)};
         HGDIOBJ previous = SelectObject(dc, font);
         int height = DrawTextW(dc, text.c_str(), -1, &rect,
                                DT_LEFT | DT_TOP | DT_WORDBREAK | DT_NOPREFIX | DT_CALCRECT);
@@ -136,15 +72,15 @@ static int renderPanel(HDC dc, int width, int dpi, const UsageSnapshot& snapshot
     };
 
     auto drawBar = [&](const RateWindow& window) {
-        const int barHeight = scaled(6, dpi);
+        const int barHeight = Scaled(6, dpi);
         RECT track{padding, y, padding + contentWidth, y + barHeight};
         if (draw) {
-            fill(dc, track, colors.track);
+            FillRect(dc, track, colors.track);
             if (window.hasUsage) {
                 int filled = MulDiv(contentWidth, window.remainingPercent(), 100);
                 if (filled > 0) {
                     RECT bar{padding, y, padding + filled, y + barHeight};
-                    fill(dc, bar, colors.accent);
+                    FillRect(dc, bar, colors.accent);
                 }
             }
         }
@@ -152,45 +88,45 @@ static int renderPanel(HDC dc, int width, int dpi, const UsageSnapshot& snapshot
     };
 
     auto drawSection = [&](const wchar_t* label, const RateWindow& window) {
-        drawText(label, fontSection, colors.muted, scaled(18, dpi), 0);
+        drawText(label, fontSection, colors.muted, Scaled(18, dpi), 0);
         drawText(remainingText(window), fontValue, window.hasUsage ? colors.text : colors.muted,
-                 scaled(26, dpi), 0);
-        y += scaled(4, dpi);
+                 Scaled(26, dpi), 0);
+        y += Scaled(4, dpi);
         drawBar(window);
-        y += scaled(6, dpi);
+        y += Scaled(6, dpi);
         const std::wstring reset = L"Resets " + ToWide(FormatResetTime(window, now));
         drawText(window.hasReset ? reset : L"Reset time unavailable", fontBody, colors.muted,
-                 scaled(19, dpi), 0);
-        y += scaled(14, dpi);
+                 Scaled(19, dpi), 0);
+        y += Scaled(14, dpi);
     };
 
     // Header.
     if (draw && closeButtonOut != nullptr) {
-        const int box = scaled(22, dpi);
-        RECT close{width - padding - box, padding - scaled(2, dpi), width - padding,
-                   padding - scaled(2, dpi) + box};
+        const int box = Scaled(22, dpi);
+        RECT close{width - padding - box, padding - Scaled(2, dpi), width - padding,
+                   padding - Scaled(2, dpi) + box};
         *closeButtonOut = close;
-        HFONT closeFont = makeFont(110, FW_NORMAL, dpi);
+        HFONT closeFont = MakeFont(110, FW_NORMAL, dpi);
         HGDIOBJ previous = SelectObject(dc, closeFont);
         SetTextColor(dc, colors.muted);
         DrawTextW(dc, L"✕", -1, &close, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         SelectObject(dc, previous);
         DeleteObject(closeFont);
     }
-    drawText(L"CLAUDE", fontTitle, colors.text, scaled(24, dpi), 0);
-    drawText(L"Claude Code subscription usage", fontSmall, colors.muted, scaled(20, dpi), 0);
-    y += scaled(8, dpi);
+    drawText(L"CLAUDE", fontTitle, colors.text, Scaled(24, dpi), 0);
+    drawText(L"Claude Code subscription usage", fontSmall, colors.muted, Scaled(20, dpi), 0);
+    y += Scaled(8, dpi);
 
     if (!haveData) {
         drawWrapped(L"No usage data yet. Run Claude Code with the ClaudeWeekUsageTray status line "
                     L"configured; this panel fills in as soon as Claude Code sends a payload.",
                     fontBody, colors.muted);
-        y += scaled(12, dpi);
+        y += Scaled(12, dpi);
     } else if (stale) {
         drawWrapped(L"Stale: Claude Code has not sent an update recently. The figures below are "
                     L"the last ones received, not a fresh reading.",
                     fontBody, colors.warning);
-        y += scaled(12, dpi);
+        y += Scaled(12, dpi);
     }
 
     drawSection(L"5-HOUR LIMIT", snapshot.fiveHour);
@@ -198,16 +134,16 @@ static int renderPanel(HDC dc, int width, int dpi, const UsageSnapshot& snapshot
 
     if (draw) {
         RECT rule{padding, y, width - padding, y + 1};
-        fill(dc, rule, colors.border);
+        FillRect(dc, rule, colors.border);
     }
-    y += scaled(1, dpi) + scaled(10, dpi);
+    y += Scaled(1, dpi) + Scaled(10, dpi);
 
     const std::wstring updated =
         L"Last update: " + ToWide(FormatRelativeAge(snapshot.receivedAtUnix, now)) +
         (stale ? L" (stale)" : L"");
-    drawText(updated, fontSmall, stale ? colors.warning : colors.muted, scaled(18, dpi), 0);
+    drawText(updated, fontSmall, stale ? colors.warning : colors.muted, Scaled(18, dpi), 0);
     drawText(L"Updates arrive only while Claude Code is running.", fontSmall, colors.muted,
-             scaled(18, dpi), 0);
+             Scaled(18, dpi), 0);
     y += padding;
 
     DeleteObject(fontTitle);
@@ -252,7 +188,7 @@ void DetailPanel::setSnapshot(const UsageSnapshot& snapshot) {
 int DetailPanel::measureHeight(int dpi) const {
     HDC screen = GetDC(nullptr);
     HDC memory = CreateCompatibleDC(screen);
-    int height = renderPanel(memory, scaled(kBaseWidth, dpi), dpi, snapshot_, false, nullptr);
+    int height = renderPanel(memory, Scaled(kBaseWidth, dpi), dpi, snapshot_, false, nullptr);
     DeleteDC(memory);
     ReleaseDC(nullptr, screen);
     return height;
@@ -262,8 +198,8 @@ void DetailPanel::show(const RECT& anchor) {
     if (hwnd_ == nullptr) return;
     lastAnchor_ = anchor;
     hasAnchor_ = true;
-    const int dpi = dpiForWindow(hwnd_);
-    const int width = scaled(kBaseWidth, dpi);
+    const int dpi = DpiForWindow(hwnd_);
+    const int width = Scaled(kBaseWidth, dpi);
     const int height = measureHeight(dpi);
 
     HMONITOR monitor = MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST);
@@ -273,10 +209,10 @@ void DetailPanel::show(const RECT& anchor) {
     const RECT work = mi.rcWork;
 
     int x = anchor.right - width;
-    int y = anchor.top - height - scaled(8, dpi);
+    int y = anchor.top - height - Scaled(8, dpi);
     if (x < work.left) x = work.left;
     if (x + width > work.right) x = work.right - width;
-    if (y < work.top) y = anchor.bottom + scaled(8, dpi);
+    if (y < work.top) y = anchor.bottom + Scaled(8, dpi);
     if (y + height > work.bottom) y = work.bottom - height;
 
     shownTick_ = GetTickCount64();
@@ -302,16 +238,16 @@ bool DetailPanel::visible() const {
 }
 
 void DetailPanel::paint(HDC dc, const RECT& client) {
-    const int dpi = dpiForWindow(hwnd_);
+    const int dpi = DpiForWindow(hwnd_);
     const bool light = SystemUsesLightTheme();
-    const Palette colors = palette(light);
+    const Palette colors = ThemePalette(light);
 
     // Double-buffered so the panel never flickers on repaint.
     HDC buffer = CreateCompatibleDC(dc);
     HBITMAP bitmap = CreateCompatibleBitmap(dc, client.right, client.bottom);
     HGDIOBJ previous = SelectObject(buffer, bitmap);
 
-    fill(buffer, client, colors.background);
+    FillRect(buffer, client, colors.background);
     SetBkMode(buffer, TRANSPARENT);
     renderPanel(buffer, client.right, dpi, snapshot_, true, &closeButton_);
 

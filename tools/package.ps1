@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $build = Join-Path $root 'build'
 $dist = Join-Path $root 'dist'
-$version = '1.0.4'
+$version = '1.0.5'
 
 Write-Host '== Building =='
 & cmd /c "`"$(Join-Path $root 'build.cmd')`""

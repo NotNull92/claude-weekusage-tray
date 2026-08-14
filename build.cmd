@@ -38,7 +38,7 @@ cl %CFLAGS% /guard:cf /Fo"%OBJ%\tray\\" /Fe"%OUT%\ClaudeWeekUsageTray.exe" ^
    "%ROOT%src\common\json.cpp" "%ROOT%src\common\usage.cpp" "%ROOT%src\common\winutil.cpp" ^
    "%ROOT%src\common\ipc.cpp" ^
    "%ROOT%src\tray\main.cpp" "%ROOT%src\tray\panel.cpp" "%ROOT%src\tray\trayicon.cpp" ^
-   "%ROOT%src\tray\menu.cpp" "%ROOT%src\tray\cli.cpp" "%ROOT%src\tray\selftest.cpp" ^
+   "%ROOT%src\tray\menu.cpp" "%ROOT%src\tray\theme.cpp" "%ROOT%src\tray\setupdialog.cpp" "%ROOT%src\tray\cli.cpp" "%ROOT%src\tray\selftest.cpp" ^
    "%ROOT%src\statusline\statusline.cpp" ^
    /link %LFLAGS% /SUBSYSTEM:WINDOWS
 if errorlevel 1 exit /b 1

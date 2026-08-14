@@ -136,6 +136,14 @@ inherently destructive. The rules the setup follows:
 4. Anything else, including a file that does not parse as JSON: change nothing
    and print the lines to add by hand.
 
+All of it happens in one window. The offer, the outcome of accepting it, and
+any error are three things to say, but three stock message boxes in a row is a
+worse way to say them than one window that changes what it shows. So the
+program draws its own: same palette, same type, same rounded shapes as the
+detail panel, with a real primary button rather than a system Yes/No pair.
+Long paths are folded at their separators first, because `DrawText` only breaks
+at spaces and a Windows path has none, which silently swallows its middle.
+
 A downloaded copy that is simply run does none of this, and would sit in the
 tray showing `--` forever with no hint why. So the tray inspects the setting on
 startup and, when usage cannot reach it, says so and offers to fix it. The

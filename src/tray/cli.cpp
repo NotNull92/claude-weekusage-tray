@@ -8,6 +8,7 @@
 #include "../common/json.h"
 #include "../common/winutil.h"
 #include "menu.h"
+#include "setupdialog.h"
 
 namespace cwut {
 namespace {
@@ -15,7 +16,9 @@ namespace {
 HANDLE g_console = INVALID_HANDLE_VALUE;
 bool g_consoleTried = false;
 bool g_redirected = false;
+bool g_capturing = false;
 std::wstring g_buffered;
+std::wstring g_captured;
 
 const wchar_t* kNotifyIconSettings = L"Control Panel\\NotifyIconSettings";
 const wchar_t* kTrayExeName = L"claudeweekusagetray.exe";
@@ -58,7 +61,24 @@ bool commandIsOurs(const std::wstring& command) {
 
 }  // namespace
 
+void BeginCapture() {
+    g_capturing = true;
+    g_captured.clear();
+}
+
+std::wstring EndCapture() {
+    g_capturing = false;
+    std::wstring text = g_captured;
+    while (!text.empty() && (text.back() == L'\n' || text.back() == L'\r')) text.pop_back();
+    g_captured.clear();
+    return text;
+}
+
 void Out(const std::string& line) {
+    if (g_capturing) {
+        g_captured += ToWide(line) + L"\r\n";
+        return;
+    }
     if (!g_consoleTried) {
         g_consoleTried = true;
         // Honour redirection first: a GUI-subsystem process still inherits a
@@ -132,7 +152,8 @@ bool backupSettings(const std::wstring& path, const std::string& contents, std::
 
 }  // namespace
 
-int RunSetup(const SetupOptions& options) {
+int RunSetup(const SetupOptions& options, SetupOutcome* outcome) {
+    if (outcome != nullptr) *outcome = SetupOutcome();
     const std::wstring helper = StatusLineCommand();
     if (helper.empty()) {
         Out("Cannot determine this program's own path, so setup cannot continue.");
@@ -226,6 +247,11 @@ int RunSetup(const SetupOptions& options) {
             return 2;
         }
         Out("Backup written: " + ToUtf8(backup));
+        if (outcome != nullptr) outcome->backupPath = backup;
+    }
+    if (outcome != nullptr) {
+        outcome->previousCommand = previousCommand;
+        outcome->repointed = repointOnly;
     }
 
     JsonValue entry = JsonValue::makeObject();
@@ -373,56 +399,82 @@ void OfferStatusLineSetup() {
     const StatusLineState state = InspectStatusLine(command);
     if (state == StatusLineState::Connected) return;
 
-    std::wstring message;
+    SetupDialog dialog;
+    if (!dialog.create(GetModuleHandleW(nullptr))) return;
+
+    DialogText offer;
+    offer.primaryLabel = L"Connect";
+    offer.secondaryLabel = L"Not now";
     switch (state) {
         case StatusLineState::Missing:
-            message =
-                L"Claude Code is not sending usage to this program yet, so the tray will "
-                L"keep showing ––.\n\nConnect it now?\n\nThis adds a status-line "
-                L"command to your Claude Code settings. The file is backed up first, and "
-                L"Exit does not undo it — use uninstall.cmd for that.";
+            offer.headline = L"Claude Code is not reporting usage yet";
+            offer.body =
+                L"The tray can only show -- until Claude Code is told to send its usage. "
+                L"Connecting adds one status-line command to your Claude Code settings, "
+                L"after backing the file up. uninstall.cmd undoes it.";
             break;
         case StatusLineState::Foreign:
-            message =
-                L"Claude Code is not sending usage to this program yet, so the tray will "
-                L"keep showing ––.\n\nIt already runs a status-line command of its "
-                L"own:\n\n    " +
-                command +
-                L"\n\nConnect this program as well?\n\nYour command keeps running and its "
-                L"output does not change. Your settings file is backed up first.";
+            offer.headline = L"Claude Code is not reporting usage yet";
+            offer.body =
+                L"It already runs a status-line command of its own. Connecting keeps that "
+                L"command running with its output unchanged and reports usage alongside it. "
+                L"Your settings file is backed up first.";
+            offer.detail = command;
             break;
         case StatusLineState::ConnectedElsewhere:
-            message =
-                L"Claude Code is sending usage to a different copy of this program:\n\n    " +
-                command +
-                L"\n\nPoint it at the copy you just started instead?\n\nYour settings file is "
-                L"backed up first.";
+            offer.headline = L"Usage is going to a different copy";
+            offer.body =
+                L"Claude Code is set up to run another copy of this program, so the copy you "
+                L"just started will not receive anything. Point Claude Code at this one? Your "
+                L"settings file is backed up first.";
+            offer.detail = command;
             break;
         case StatusLineState::Unreadable:
-            MessageBoxW(nullptr,
-                        L"Claude Code's settings file could not be read as JSON, so this "
-                        L"program will not change it.\n\nRun ClaudeWeekUsageTray.exe --setup "
-                        L"from a command prompt to see the lines to add by hand.",
-                        L"ClaudeWeekUsageTray", MB_OK | MB_ICONWARNING);
+            offer.headline = L"Settings file could not be read";
+            offer.body =
+                L"Claude Code's settings.json is not valid JSON, and this program will not "
+                L"rewrite a file it cannot parse. Repair the file, then start this program "
+                L"again. To see the lines to add by hand, run ClaudeWeekUsageTray.exe --setup "
+                L"from a command prompt.";
+            offer.primaryLabel = L"Close";
+            offer.secondaryLabel.clear();
+            offer.warning = true;
+            dialog.ask(offer);
+            dialog.destroy();
             return;
-        case StatusLineState::Connected: return;
+        case StatusLineState::Connected: break;
     }
 
-    if (MessageBoxW(nullptr, message.c_str(), L"ClaudeWeekUsageTray",
-                    MB_YESNO | MB_ICONQUESTION) != IDYES) {
+    if (!dialog.ask(offer)) {
+        dialog.destroy();
         return;
     }
 
+    BeginCapture();
     SetupOptions options;
-    options.wrapExisting = true;  // The prompt said the existing command is kept.
-    const int result = RunSetup(options);
-    FlushOut();
+    options.wrapExisting = true;  // The offer said the existing command is kept.
+    SetupOutcome outcome;
+    const int result = RunSetup(options, &outcome);
+    const std::wstring log = EndCapture();
+
+    DialogText done;
+    done.primaryLabel = L"Close";
     if (result == 0) {
-        MessageBoxW(nullptr,
-                    L"Connected. The number appears the next time Claude Code draws its "
-                    L"status line, which happens as soon as you use it.",
-                    L"ClaudeWeekUsageTray", MB_OK | MB_ICONINFORMATION);
+        done.headline = L"Connected";
+        done.body =
+            L"Send Claude Code a message and the number appears within a few seconds. "
+            L"Nothing is fetched while Claude Code is closed, so the panel says when the "
+            L"figures were last received.";
+        if (!outcome.backupPath.empty()) {
+            done.detail = L"Settings backed up to\n" + outcome.backupPath;
+        }
+    } else {
+        done.headline = L"Not connected";
+        done.body = log.empty() ? L"Setup did not finish, and nothing was changed." : log;
+        done.warning = true;
     }
+    dialog.ask(done);
+    dialog.destroy();
 }
 
 // ---------------------------------------------------------------------------
