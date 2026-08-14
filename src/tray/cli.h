@@ -19,6 +19,28 @@ struct SetupOptions {
     bool wrapExisting = false;
 };
 
+// How Claude Code's status-line setting relates to this executable.
+enum class StatusLineState {
+    Connected,           // runs this exact copy; usage will arrive
+    ConnectedElsewhere,  // runs this program, but a copy at another path
+    Missing,             // no statusLine entry at all
+    Foreign,             // runs some other command
+    Unreadable,          // a settings file this program will not rewrite
+};
+
+// Pure classification, kept separate from any file so it can be tested.
+StatusLineState ClassifyStatusLine(bool entryPresent, bool entryUnderstood,
+                                   const std::wstring& command,
+                                   const std::wstring& ourExecutablePath);
+
+// Reads the settings file and classifies it. `command` receives whatever
+// command was found, empty when there is none.
+StatusLineState InspectStatusLine(std::wstring& command);
+
+// Called once when the tray starts. If usage cannot reach it, this says so and
+// offers to fix it. Nothing is written unless the user agrees.
+void OfferStatusLineSetup();
+
 int RunSetup(const SetupOptions& options);
 int RunRemoveStatusLine();
 

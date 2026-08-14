@@ -54,23 +54,30 @@ pretending otherwise.
    Get-FileHash .\ClaudeWeekUsageTray.exe -Algorithm SHA256
    ```
 
-3. Connect it to Claude Code:
+3. Run `ClaudeWeekUsageTray.exe`.
 
-   ```powershell
-   .\ClaudeWeekUsageTray.exe --setup
-   ```
+   Claude Code has to be told to send usage, so on startup the program checks
+   whether that is set up and offers to do it if not. Answer **Yes** and it
+   writes the setting for you, after backing your settings file up. If you
+   already run your own status-line command it says so first, and keeps that
+   command.
 
-4. Start the tray program:
-
-   ```powershell
-   .\ClaudeWeekUsageTray.exe
-   ```
-
-5. Start Claude Code. The number appears as soon as Claude Code sends its first
-   status-line payload.
+4. Use Claude Code. The number appears as soon as Claude Code draws its status
+   line, which is immediately once you send a message.
 
 Until the first payload arrives the tray shows `--`. That is the honest state,
 not an error.
+
+If you prefer to do the setup yourself, or want it scripted, the same thing is
+available without the prompt:
+
+```powershell
+.\ClaudeWeekUsageTray.exe --setup
+```
+
+Moving the folder later breaks the link, because Claude Code stores the path it
+should run. Start the program from its new home and it notices and offers to
+point Claude Code at the new location.
 
 ### The EXE is not code-signed
 

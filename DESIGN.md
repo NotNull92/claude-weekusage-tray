@@ -136,6 +136,16 @@ inherently destructive. The rules the setup follows:
 4. Anything else, including a file that does not parse as JSON: change nothing
    and print the lines to add by hand.
 
+A downloaded copy that is simply run does none of this, and would sit in the
+tray showing `--` forever with no hint why. So the tray inspects the setting on
+startup and, when usage cannot reach it, says so and offers to fix it. The
+offer is the opt-in: nothing is written unless the answer is yes, and the same
+four rules then apply. The check also catches the copy that was moved, or the
+second copy downloaded to a new folder, where the setting still names a path
+that is no longer the one running. That case re-points the command and leaves
+the record of any wrapped user command alone, because that command is still
+theirs and still wanted.
+
 `settings.json` is backed up before any write, unrecognised keys inside
 `statusLine` are carried over, and `--remove-statusline` puts the original
 back.

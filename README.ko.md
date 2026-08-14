@@ -50,23 +50,29 @@ Claude Code 구독 사용량이 얼마나 남았는지 보여주는 작은 Windo
    Get-FileHash .\ClaudeWeekUsageTray.exe -Algorithm SHA256
    ```
 
-3. Claude Code에 연결합니다.
+3. `ClaudeWeekUsageTray.exe`를 실행합니다.
 
-   ```powershell
-   .\ClaudeWeekUsageTray.exe --setup
-   ```
+   사용량을 보내도록 Claude Code에 알려줘야 하므로, 프로그램은 시작할 때 그
+   설정이 되어 있는지 확인하고 안 되어 있으면 물어봅니다. **예**를 누르면
+   설정 파일을 백업한 뒤 대신 써 줍니다. 이미 쓰시던 상태 표시줄 명령이
+   있으면 먼저 알려주고, 그 명령은 그대로 유지합니다.
 
-4. 트레이 프로그램을 실행합니다.
-
-   ```powershell
-   .\ClaudeWeekUsageTray.exe
-   ```
-
-5. Claude Code를 실행합니다. 첫 상태 표시줄 데이터가 도착하는 즉시 숫자가
-   나타납니다.
+4. Claude Code를 사용합니다. 상태 표시줄이 그려지는 즉시 — 메시지를 하나
+   보내면 바로 — 숫자가 나타납니다.
 
 첫 데이터가 도착하기 전까지 트레이는 `--`를 표시합니다. 오류가 아니라 사실
 그대로의 상태입니다.
+
+직접 설정하거나 스크립트로 처리하고 싶으면, 물어보는 과정 없이 같은 일을
+하는 명령이 있습니다.
+
+```powershell
+.\ClaudeWeekUsageTray.exe --setup
+```
+
+나중에 폴더를 옮기면 연결이 끊깁니다. Claude Code가 실행할 경로를 저장해
+두기 때문입니다. 옮긴 위치에서 프로그램을 실행하면 그 사실을 알아채고 새
+위치로 바꿀지 물어봅니다.
 
 ### 실행 파일에 코드 서명이 없습니다
 

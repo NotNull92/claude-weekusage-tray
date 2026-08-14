@@ -159,6 +159,7 @@ int RunSetup(const SetupOptions& options) {
 
     const JsonValue* statusLine = root.find("statusLine");
     std::wstring previousCommand;
+    bool repointOnly = false;
     if (statusLine != nullptr && !statusLine->isNull()) {
         if (!statusLine->isObject()) {
             Out("Your settings already contain a \"statusLine\" entry in a shape this setup does");
@@ -177,11 +178,16 @@ int RunSetup(const SetupOptions& options) {
         }
         previousCommand = ToWide(command->str);
         if (commandIsOurs(previousCommand)) {
-            Out("Claude Code is already configured to use the ClaudeWeekUsageTray status line.");
-            Out("Nothing to do.");
-            return 0;
+            if (toLower(previousCommand) == toLower(helper)) {
+                Out("Claude Code is already configured to use this copy of ClaudeWeekUsageTray.");
+                Out("Nothing to do.");
+                return 0;
+            }
+            // Same program at a different path, so this is a re-point, not a
+            // wrap. Any command already recorded stays recorded.
+            repointOnly = true;
         }
-        if (!options.wrapExisting) {
+        if (!repointOnly && !options.wrapExisting) {
             Out("Claude Code already runs a status-line command:");
             Out("  " + ToUtf8(previousCommand));
             Out("");
@@ -195,7 +201,10 @@ int RunSetup(const SetupOptions& options) {
 
     // Record the command being wrapped before touching settings.json.
     const std::wstring wrappedPath = wrappedConfigPath();
-    if (!previousCommand.empty()) {
+    if (repointOnly) {
+        // Leave the record alone: it still describes the user's own command,
+        // not the copy of this program being replaced.
+    } else if (!previousCommand.empty()) {
         JsonValue wrapped = JsonValue::makeObject();
         wrapped.set("version", JsonValue::makeNumber(1));
         wrapped.set("wrapped_command", JsonValue::makeString(ToUtf8(previousCommand)));
@@ -237,7 +246,10 @@ int RunSetup(const SetupOptions& options) {
     }
 
     Out("Status line configured in " + ToUtf8(settingsPath) + ".");
-    if (!previousCommand.empty()) {
+    if (repointOnly) {
+        Out("Claude Code now runs this copy instead of:");
+        Out("  " + ToUtf8(previousCommand));
+    } else if (!previousCommand.empty()) {
         Out("Your previous command is still used and its output is unchanged:");
         Out("  " + ToUtf8(previousCommand));
     }
@@ -312,6 +324,105 @@ int RunRemoveStatusLine() {
         Out("  " + restored);
     }
     return 0;
+}
+
+// ---------------------------------------------------------------------------
+// First-run check
+// ---------------------------------------------------------------------------
+
+StatusLineState ClassifyStatusLine(bool entryPresent, bool entryUnderstood,
+                                   const std::wstring& command,
+                                   const std::wstring& ourExecutablePath) {
+    if (!entryPresent) return StatusLineState::Missing;
+    if (!entryUnderstood) return StatusLineState::Unreadable;
+    if (!commandIsOurs(command)) return StatusLineState::Foreign;
+    if (ourExecutablePath.empty()) return StatusLineState::ConnectedElsewhere;
+    return toLower(command).find(toLower(ourExecutablePath)) != std::wstring::npos
+               ? StatusLineState::Connected
+               : StatusLineState::ConnectedElsewhere;
+}
+
+StatusLineState InspectStatusLine(std::wstring& command) {
+    command.clear();
+    const std::wstring settingsPath = GetClaudeSettingsPath();
+    std::string text;
+    if (settingsPath.empty() || !ReadAllBytes(settingsPath, text, kMaxJsonBytes)) {
+        return StatusLineState::Missing;
+    }
+    JsonValue root;
+    if (!JsonParse(text, root, nullptr) || !root.isObject()) {
+        return ClassifyStatusLine(true, false, L"", GetExecutablePath());
+    }
+    const JsonValue* entry = root.find("statusLine");
+    if (entry == nullptr || entry->isNull()) {
+        return StatusLineState::Missing;
+    }
+    if (!entry->isObject()) {
+        return ClassifyStatusLine(true, false, L"", GetExecutablePath());
+    }
+    const JsonValue* type = entry->find("type");
+    const JsonValue* value = entry->find("command");
+    const bool understood = type != nullptr && type->isString() && type->str == "command" &&
+                            value != nullptr && value->isString();
+    if (understood) command = ToWide(value->str);
+    return ClassifyStatusLine(true, understood, command, GetExecutablePath());
+}
+
+void OfferStatusLineSetup() {
+    std::wstring command;
+    const StatusLineState state = InspectStatusLine(command);
+    if (state == StatusLineState::Connected) return;
+
+    std::wstring message;
+    switch (state) {
+        case StatusLineState::Missing:
+            message =
+                L"Claude Code is not sending usage to this program yet, so the tray will "
+                L"keep showing ––.\n\nConnect it now?\n\nThis adds a status-line "
+                L"command to your Claude Code settings. The file is backed up first, and "
+                L"Exit does not undo it — use uninstall.cmd for that.";
+            break;
+        case StatusLineState::Foreign:
+            message =
+                L"Claude Code is not sending usage to this program yet, so the tray will "
+                L"keep showing ––.\n\nIt already runs a status-line command of its "
+                L"own:\n\n    " +
+                command +
+                L"\n\nConnect this program as well?\n\nYour command keeps running and its "
+                L"output does not change. Your settings file is backed up first.";
+            break;
+        case StatusLineState::ConnectedElsewhere:
+            message =
+                L"Claude Code is sending usage to a different copy of this program:\n\n    " +
+                command +
+                L"\n\nPoint it at the copy you just started instead?\n\nYour settings file is "
+                L"backed up first.";
+            break;
+        case StatusLineState::Unreadable:
+            MessageBoxW(nullptr,
+                        L"Claude Code's settings file could not be read as JSON, so this "
+                        L"program will not change it.\n\nRun ClaudeWeekUsageTray.exe --setup "
+                        L"from a command prompt to see the lines to add by hand.",
+                        L"ClaudeWeekUsageTray", MB_OK | MB_ICONWARNING);
+            return;
+        case StatusLineState::Connected: return;
+    }
+
+    if (MessageBoxW(nullptr, message.c_str(), L"ClaudeWeekUsageTray",
+                    MB_YESNO | MB_ICONQUESTION) != IDYES) {
+        return;
+    }
+
+    SetupOptions options;
+    options.wrapExisting = true;  // The prompt said the existing command is kept.
+    const int result = RunSetup(options);
+    FlushOut();
+    if (result == 0) {
+        MessageBoxW(nullptr,
+                    L"Connected. The number appears the next time Claude Code draws its "
+                    L"status line, which happens as soon as you use it.",
+                    L"ClaudeWeekUsageTray", MB_OK | MB_ICONINFORMATION);
+    }
 }
 
 // ---------------------------------------------------------------------------

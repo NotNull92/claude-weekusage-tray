@@ -305,6 +305,35 @@ void testMenuAndPanel() {
     panel.destroy();
 }
 
+// A copy that is downloaded and run without setup can only ever show "--", so
+// the tray has to notice and say so. These are the cases it must tell apart.
+void testStatusLineDetection() {
+    Out("Status-line detection");
+    const std::wstring here = L"C:\\Tools\\ClaudeWeekUsageTray\\ClaudeWeekUsageTray.exe";
+    const std::wstring ours = L"\"" + here + L"\" --statusline";
+    const std::wstring elsewhere =
+        L"\"D:\\Downloads\\ClaudeWeekUsageTray.exe\" --statusline";
+
+    check(ClassifyStatusLine(true, true, ours, here) == StatusLineState::Connected,
+          "this copy being configured counts as connected");
+    check(ClassifyStatusLine(true, true, elsewhere, here) == StatusLineState::ConnectedElsewhere,
+          "another copy of the program is spotted as the wrong one");
+    check(ClassifyStatusLine(false, false, L"", here) == StatusLineState::Missing,
+          "no entry at all is spotted");
+    check(ClassifyStatusLine(true, true, L"node status.mjs", here) == StatusLineState::Foreign,
+          "someone else's command is spotted");
+    check(ClassifyStatusLine(true, false, L"", here) == StatusLineState::Unreadable,
+          "an entry this program will not rewrite is spotted");
+    check(ClassifyStatusLine(true, true, L"\"c:\\tools\\claudeweekusagetray\\"
+                                          L"claudeweekusagetray.exe\" --statusline",
+                             here) == StatusLineState::Connected,
+          "the path comparison ignores case");
+    // A command that merely mentions the program is not the program running.
+    check(ClassifyStatusLine(true, true, L"echo ClaudeWeekUsageTray.exe", here) ==
+              StatusLineState::Foreign,
+          "a command that only names the program is still foreign");
+}
+
 void testIpc() {
     Out("Local IPC channel");
     IpcServer server;
@@ -514,6 +543,7 @@ int RunSelfTest() {
     testLabels();
     testIcon();
     testMenuAndPanel();
+    testStatusLineDetection();
     testIpc();
     testStatusLineMode();
     testNoTokenBoundary();

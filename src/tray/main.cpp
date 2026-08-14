@@ -25,7 +25,7 @@
 namespace cwut {
 namespace {
 
-const wchar_t* kVersion = L"1.0.3";
+const wchar_t* kVersion = L"1.0.4";
 const wchar_t* kWindowClass = kTrayWindowClass;
 const wchar_t* kMutexName = L"Local\\ClaudeWeekUsageTray.SingleInstance";
 
@@ -306,6 +306,9 @@ int TrayApp::run(HINSTANCE instance) {
     }
 
     addIcon();
+    // Without the status-line setting the tray can only ever show "--", so say
+    // so on startup rather than sitting there looking broken.
+    OfferStatusLineSetup();
     SetTimer(hwnd_, kStaleTimerId, kStaleTimerMs, nullptr);
 
     MSG message{};
