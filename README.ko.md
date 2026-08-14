@@ -1,15 +1,25 @@
+<p align="center">
+  <img src="docs/logo/logo.png" width="160" alt="ClaudeWeekUsageTray 로고">
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> | <b>한국어</b> | <a href="README.ja.md">日本語</a> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.ru.md">Русский</a>
+</p>
+
 # ClaudeWeekUsageTray
 
 Claude Code 구독 사용량이 얼마나 남았는지 보여주는 작은 Windows 트레이 프로그램입니다.
 
-<img src="docs/tray-icon.png" width="72" alt="73을 표시하는 트레이 아이콘"> &nbsp;&nbsp;
-<img src="docs/panel.png" width="300" alt="73%와 59% 잔량을 보여주는 상세 패널">
-
 알림 영역의 숫자는 **5시간 한도의 남은 비율**입니다. 클릭하면 두 한도와 각각의
 초기화 시각을 보여주는 패널이 열립니다.
 
-다른 언어: [English](README.md) · [日本語](README.ja.md) ·
-[简体中文](README.zh-CN.md) · [Русский](README.ru.md)
+<p align="center">
+  <img src="docs/tray-icon.png" width="72" alt="73을 표시하는 트레이 아이콘"><br>
+  <sub><em>트레이 아이콘</em></sub>
+  <br><br>
+  <img src="docs/panel.png" width="320" alt="73%와 59% 잔량을 보여주는 상세 패널"><br>
+  <sub><em>상세 패널</em></sub>
+</p>
 
 ## 하는 일과 하지 않는 일
 

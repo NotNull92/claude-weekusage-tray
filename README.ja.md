@@ -1,16 +1,26 @@
+<p align="center">
+  <img src="docs/logo/logo.png" width="160" alt="ClaudeWeekUsageTray ロゴ">
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.ko.md">한국어</a> | <b>日本語</b> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.ru.md">Русский</a>
+</p>
+
 # ClaudeWeekUsageTray
 
 Claude Code のサブスクリプション利用枠が、あとどれだけ残っているかを表示する
 小さな Windows トレイプログラムです。
 
-<img src="docs/tray-icon.png" width="72" alt="73 を表示しているトレイアイコン"> &nbsp;&nbsp;
-<img src="docs/panel.png" width="300" alt="残り 73% と 59% を表示している詳細パネル">
-
 通知領域の数字は **5 時間枠の残り割合**です。クリックすると、2 つの枠と
 それぞれのリセット時刻を並べたパネルが開きます。
 
-他の言語で読む: [English](README.md) · [한국어](README.ko.md) ·
-[简体中文](README.zh-CN.md) · [Русский](README.ru.md)
+<p align="center">
+  <img src="docs/tray-icon.png" width="72" alt="73 を表示しているトレイアイコン"><br>
+  <sub><em>トレイアイコン</em></sub>
+  <br><br>
+  <img src="docs/panel.png" width="320" alt="残り 73% と 59% を表示している詳細パネル"><br>
+  <sub><em>詳細パネル</em></sub>
+</p>
 
 ## できること、そして決してしないこと
 

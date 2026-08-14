@@ -1,15 +1,25 @@
+<p align="center">
+  <img src="docs/logo/logo.png" width="160" alt="ClaudeWeekUsageTray 标志">
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.ko.md">한국어</a> | <a href="README.ja.md">日本語</a> | <b>简体中文</b> | <a href="README.ru.md">Русский</a>
+</p>
+
 # ClaudeWeekUsageTray
 
 一个小巧的 Windows 托盘程序，显示你的 Claude Code 订阅额度还剩多少。
 
-<img src="docs/tray-icon.png" width="72" alt="显示 73 的托盘图标"> &nbsp;&nbsp;
-<img src="docs/panel.png" width="300" alt="显示剩余 73% 和 59% 的详情面板">
-
 通知区域里的数字是 **5 小时额度的剩余百分比**。点击它会打开面板，同时列出两个
 额度窗口和各自的重置时间。
 
-其他语言: [English](README.md) · [한국어](README.ko.md) · [日本語](README.ja.md) ·
-[Русский](README.ru.md)
+<p align="center">
+  <img src="docs/tray-icon.png" width="72" alt="显示 73 的托盘图标"><br>
+  <sub><em>托盘图标</em></sub>
+  <br><br>
+  <img src="docs/panel.png" width="320" alt="显示剩余 73% 和 59% 的详情面板"><br>
+  <sub><em>详情面板</em></sub>
+</p>
 
 ## 它做什么，以及绝不做什么
 

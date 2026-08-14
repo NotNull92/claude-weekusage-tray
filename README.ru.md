@@ -1,16 +1,26 @@
+<p align="center">
+  <img src="docs/logo/logo.png" width="160" alt="Логотип ClaudeWeekUsageTray">
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.ko.md">한국어</a> | <a href="README.ja.md">日本語</a> | <a href="README.zh-CN.md">简体中文</a> | <b>Русский</b>
+</p>
+
 # ClaudeWeekUsageTray
 
 Небольшая программа в области уведомлений Windows, показывающая, сколько
 осталось от лимита вашей подписки Claude Code.
 
-<img src="docs/tray-icon.png" width="72" alt="Значок в трее с числом 73"> &nbsp;&nbsp;
-<img src="docs/panel.png" width="300" alt="Панель с остатком 73% и 59%">
-
 Число в области уведомлений — это **процент остатка пятичасового лимита**.
 По щелчку открывается панель с обоими окнами лимита и временем их сброса.
 
-На других языках: [English](README.md) · [한국어](README.ko.md) ·
-[日本語](README.ja.md) · [简体中文](README.zh-CN.md)
+<p align="center">
+  <img src="docs/tray-icon.png" width="72" alt="Значок в трее с числом 73"><br>
+  <sub><em>Значок в трее</em></sub>
+  <br><br>
+  <img src="docs/panel.png" width="320" alt="Панель с остатком 73% и 59%"><br>
+  <sub><em>Панель</em></sub>
+</p>
 
 ## Что она делает и чего не делает никогда
 

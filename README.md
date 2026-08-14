@@ -1,17 +1,27 @@
+<p align="center">
+  <img src="docs/logo/logo.png" width="160" alt="ClaudeWeekUsageTray logo">
+</p>
+
+<p align="center">
+  <b>English</b> | <a href="README.ko.md">한국어</a> | <a href="README.ja.md">日本語</a> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.ru.md">Русский</a>
+</p>
+
 # ClaudeWeekUsageTray
 
 A small Windows tray program that shows how much of your Claude Code
 subscription limit is left.
 
-<img src="docs/tray-icon.png" width="72" alt="Tray icon showing 73"> &nbsp;&nbsp;
-<img src="docs/panel.png" width="300" alt="Detail panel showing 73% and 59% remaining">
-
 The number in the notification area is the **percentage of your 5-hour limit
 still available**. Click it for a panel with both windows and their reset
 times.
 
-Read in other languages: [한국어](README.ko.md) · [日本語](README.ja.md) ·
-[简体中文](README.zh-CN.md) · [Русский](README.ru.md)
+<p align="center">
+  <img src="docs/tray-icon.png" width="72" alt="Tray icon showing 73"><br>
+  <sub><em>Tray icon</em></sub>
+  <br><br>
+  <img src="docs/panel.png" width="320" alt="Detail panel showing 73% and 59% remaining"><br>
+  <sub><em>Detail panel</em></sub>
+</p>
 
 ## What it does, and what it will not do
 
