@@ -266,6 +266,16 @@ void testMenuAndPanel() {
     RECT anchor{1000, 1000, 1016, 1016};
     panel.toggle(anchor);
     check(panel.visible(), "left-click style toggle shows the panel");
+    RECT first{};
+    GetWindowRect(panel.hwnd(), &first);
+    UsageSnapshot later = snapshot;
+    later.receivedAtUnix = NowUnix();
+    panel.setSnapshot(later);
+    RECT second{};
+    GetWindowRect(panel.hwnd(), &second);
+    check(first.left == second.left && first.top == second.top,
+          "an incoming update leaves the open panel where it is");
+
     panel.toggle(anchor);
     check(!panel.visible(), "a second toggle hides it");
     SendMessageW(panel.hwnd(), WM_CLOSE, 0, 0);

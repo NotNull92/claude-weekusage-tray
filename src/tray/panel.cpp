@@ -242,12 +242,10 @@ void DetailPanel::destroy() {
 
 void DetailPanel::setSnapshot(const UsageSnapshot& snapshot) {
     snapshot_ = snapshot;
-    if (hwnd_ != nullptr && IsWindowVisible(hwnd_)) {
-        InvalidateRect(hwnd_, nullptr, TRUE);
-        // Content height can change (for example a stale banner appearing).
-        RECT anchor{};
-        GetWindowRect(hwnd_, &anchor);
-        show(anchor);
+    if (hwnd_ != nullptr && IsWindowVisible(hwnd_) && hasAnchor_) {
+        // Re-lay out against the original anchor, because the content height
+        // can change when a stale banner appears or disappears.
+        show(lastAnchor_);
     }
 }
 
@@ -262,6 +260,8 @@ int DetailPanel::measureHeight(int dpi) const {
 
 void DetailPanel::show(const RECT& anchor) {
     if (hwnd_ == nullptr) return;
+    lastAnchor_ = anchor;
+    hasAnchor_ = true;
     const int dpi = dpiForWindow(hwnd_);
     const int width = scaled(kBaseWidth, dpi);
     const int height = measureHeight(dpi);

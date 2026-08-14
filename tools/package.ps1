@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $build = Join-Path $root 'build'
 $dist = Join-Path $root 'dist'
-$version = '1.0.0'
+$version = '1.0.1'
 $name = "ClaudeWeekUsageTray-v$version-win-x64"
 
 Write-Host '== Building =='

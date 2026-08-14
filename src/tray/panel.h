@@ -29,6 +29,10 @@ private:
     HWND hwnd_ = nullptr;
     UsageSnapshot snapshot_;
     RECT closeButton_{};
+    // The tray icon rect the panel was last opened against. Re-laying out
+    // against the panel's own rect would walk it up the screen on every update.
+    RECT lastAnchor_{};
+    bool hasAnchor_ = false;
     // Opening from the notification-area overflow flyout causes a burst of
     // focus changes as the flyout closes. Deactivations inside this grace
     // period are ignored so the panel does not vanish the instant it appears.

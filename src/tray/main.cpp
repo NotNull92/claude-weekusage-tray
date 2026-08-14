@@ -24,7 +24,7 @@
 namespace cwut {
 namespace {
 
-const wchar_t* kVersion = L"1.0.0";
+const wchar_t* kVersion = L"1.0.1";
 const wchar_t* kWindowClass = L"ClaudeWeekUsageTray.Message";
 const wchar_t* kMutexName = L"Local\\ClaudeWeekUsageTray.SingleInstance";
 
@@ -189,7 +189,9 @@ void TrayApp::refreshIcon() {
     int size = GetSystemMetrics(SM_CXSMICON);
     style.sizePixels = size > 0 ? size : 16;
     style.lightTheme = SystemUsesLightTheme();
-    style.dimmed = IsStale(uiSnapshot_, NowUnix());
+    // Dimming says "this number is old". With no number at all there is
+    // nothing to distrust, so "--" is drawn at full strength.
+    style.dimmed = uiSnapshot_.receivedAtUnix != 0 && IsStale(uiSnapshot_, NowUnix());
 
     HICON fresh = CreateLabelIcon(ToWide(FormatTrayLabel(uiSnapshot_)), style);
     if (fresh == nullptr) return;
