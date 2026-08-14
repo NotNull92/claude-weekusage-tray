@@ -10,7 +10,8 @@ The number in the notification area is the **percentage of your 5-hour limit
 still available**. Click it for a panel with both windows and their reset
 times.
 
-Read in other languages: [한국어](README.ko.md)
+Read in other languages: [한국어](README.ko.md) · [日本語](README.ja.md) ·
+[简体中文](README.zh-CN.md) · [Русский](README.ru.md)
 
 ## What it does, and what it will not do
 
@@ -46,8 +47,7 @@ pretending otherwise.
 
 1. Download the release ZIP and unpack it somewhere you intend to keep it, for
    example `C:\Tools\ClaudeWeekUsageTray`. It holds two files,
-   `ClaudeWeekUsageTray.exe` and `uninstall.cmd`. The program records the path
-   it runs from, so moving it later means running setup again.
+   `ClaudeWeekUsageTray.exe` and `uninstall.cmd`.
 2. Check the download against the `SHA256SUMS-v*.txt` published beside it:
 
    ```powershell
@@ -56,11 +56,14 @@ pretending otherwise.
 
 3. Run `ClaudeWeekUsageTray.exe`.
 
-   Claude Code has to be told to send usage, so on startup the program checks
-   whether that is set up and offers to do it if not. Answer **Connect** and it
-   writes the setting for you, after backing your settings file up. If you
-   already run your own status-line command it says so first, and keeps that
-   command.
+   Claude Code has to be told to send usage, so the program checks on startup
+   whether that is set up, and offers to do it if not:
+
+   <img src="docs/first-run.png" width="404" alt="First-run window offering to connect Claude Code">
+
+   Choose **Connect** and it writes the setting, after backing your settings
+   file up. If you already run your own status-line command it says so first
+   and keeps that command running.
 
 4. Use Claude Code. The number appears as soon as Claude Code draws its status
    line, which is immediately once you send a message.
@@ -68,16 +71,18 @@ pretending otherwise.
 Until the first payload arrives the tray shows `--`. That is the honest state,
 not an error.
 
-If you prefer to do the setup yourself, or want it scripted, the same thing is
-available without the prompt:
+If you would rather do the setup yourself, or want it scripted, the same thing
+is available without the prompt:
 
 ```powershell
 .\ClaudeWeekUsageTray.exe --setup
 ```
 
-Moving the folder later breaks the link, because Claude Code stores the path it
-should run. Start the program from its new home and it notices and offers to
-point Claude Code at the new location.
+Claude Code stores the path it should run, so moving the folder breaks the
+link. Start the program from its new home and it notices and offers to point
+Claude Code at the new location. The same offer appears if you unpack a newer
+release somewhere else: **Exit** the copy already running first, or the new one
+will just open the running copy's panel instead.
 
 ### The EXE is not code-signed
 
@@ -112,8 +117,9 @@ a fresh reading.
 
 ## If you already use a status line
 
-Claude Code allows one `statusLine` command. If you already have one, `--setup`
-refuses to touch it and tells you what it would have done:
+Claude Code allows one `statusLine` command, so adding one is inherently
+destructive. The startup window says so and asks before touching anything, and
+`--setup` refuses outright and tells you what it would have done:
 
 ```powershell
 .\ClaudeWeekUsageTray.exe --setup
